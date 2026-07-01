@@ -173,6 +173,30 @@
 
 ---
 
+## Phase 13: CI/CD — Multi-arch Image Builds [x]
+
+- [x] `.github/workflows/build.yml` — triggers on push to `main`; `changes` job uses `dorny/paths-filter@v3` to detect `backend/**` and `frontend/**` changes so only affected images rebuild; root-only changes (docs, README) skip both builds
+- [x] `build-backend` job — sets up QEMU + Buildx; logs into GHCR with `GITHUB_TOKEN`; lowercases `github.repository_owner` for GHCR compatibility; uses `docker/metadata-action@v5` to tag `latest` + short SHA; builds `exoscan-be` for `linux/amd64,linux/arm64` with GHA layer cache (`scope=exoscan-be`)
+- [x] `build-frontend` job — identical pattern for `exoscan-fe`; both jobs run in parallel when both paths change
+- [x] `docker-compose.yml` — `image: ghcr.io/${IMAGE_OWNER:-your-github-org}/exoscan-be:${TAG:-latest}` added to backend service; same for frontend with `exoscan-fe`; `build:` directive retained so `docker compose up --build` still works for local development
+- [x] `.env.example` — added `IMAGE_OWNER` (your GitHub username/org, lowercase) and `TAG=latest`; deployment vs local-dev workflow documented in comments
+
+**Deployment workflow (pre-built images):**
+```bash
+# set IMAGE_OWNER in .env first
+docker compose pull
+docker compose up -d
+```
+
+**Local development workflow (build from source):**
+```bash
+docker compose up --build
+```
+
+**After first push to main:** go to your repo → Packages → set `exoscan-be` and `exoscan-fe` visibility to Public (or configure `docker login ghcr.io` for private access).
+
+---
+
 ## Completed Phases
 
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore
@@ -187,3 +211,4 @@
 - **Phase 10: Frontend** — Vite 5 + Tailwind v4 + shadcn/ui (12 Radix components); 4-step NewScanForm wizard; JWT Axios client with refresh-retry; Zustand auth + scan stores; TanStack Query for API data; WebSocket log streaming via useScanLogs; LogViewer terminal; ScanProgress stepper; PassiveReconPanel (DNS/Subdomains/Dorks tabs); AssetGrid/AssetCard with screenshots, tech badges, CVE list, SuggestedScans trigger buttons; dark emerald theme
 - **Phase 11: Security Hardening** — slowapi Limiter (5/min per IP on register/login/refresh); port range sanity check (_valid_port_ranges: 1–65535 bounds, range start≤end); audit confirmed shlex.quote on all user-derived shell args, CORS locked to FRONTEND_URL, no shell=True anywhere
 - **Phase 12: Documentation** — docs/architecture.md (system diagram + sequence diagram + package layout + design decisions), docs/developer.md (setup + migrations + module extension guides + isolation testing), docs/user.md (scan types + modules + results interpretation + limitations + responsible use)
+- **Phase 13: CI/CD** — `.github/workflows/build.yml`: path-filtered multi-arch builds (amd64 + arm64) for `exoscan-be` and `exoscan-fe` on push to main; GHCR push with `latest` + SHA tags; GHA layer cache per image; docker-compose.yml updated with `image:` fields (`ghcr.io/${IMAGE_OWNER}/exoscan-be/fe:${TAG:-latest}`); `build:` retained for local dev; `.env.example` documents `IMAGE_OWNER` + `TAG`

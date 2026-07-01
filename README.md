@@ -65,9 +65,40 @@ All variables are in `.env.example`. The ones you need to set:
 | `SECRET_KEY` | **Yes** | JWT signing secret — generate with `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | **Yes** | Database password |
 | `FRONTEND_URL` | **Yes** | CORS allowed origin — `http://localhost:3000` for local dev |
+| `IMAGE_OWNER` | For deployment | Your GitHub username or org name (lowercase) — used to pull pre-built images |
+| `TAG` | No | Image tag to deploy, default `latest` |
 | `NVD_API_KEY` | No | Raises NVD CVE rate limit from 5 to 50 req/30 s — register at nvd.nist.gov |
 
-`DATABASE_URL`, `SCREENSHOT_BASE_PATH`, and volume name variables are set automatically by docker-compose and don't need to be changed for standard deployments.
+`DATABASE_URL`, `SCREENSHOT_BASE_PATH`, and volume name variables are set automatically by docker-compose.
+
+---
+
+## Deployment (pre-built images)
+
+Pre-built multi-arch images (`linux/amd64` + `linux/arm64`) are published to GitHub Container Registry on every push to `main`:
+
+| Image | Registry path |
+|-------|--------------|
+| Backend | `ghcr.io/<owner>/exoscan-be` |
+| Frontend | `ghcr.io/<owner>/exoscan-fe` |
+
+To deploy on a server or Raspberry Pi without building from source:
+
+```bash
+cp .env.example .env
+# Set SECRET_KEY, POSTGRES_PASSWORD, FRONTEND_URL, IMAGE_OWNER in .env
+
+docker compose pull        # pulls exoscan-be and exoscan-fe from GHCR
+docker compose up -d
+```
+
+If the packages are private (default for personal GHCR accounts), log in first:
+
+```bash
+echo $GITHUB_PAT | docker login ghcr.io -u <your-username> --password-stdin
+```
+
+After the first workflow run, make the packages public under your repo's **Packages** tab, or manage access under **Package settings → Manage access**.
 
 ---
 

@@ -19,6 +19,7 @@ services:
 
   backend:
     build: ./backend
+    image: ghcr.io/${IMAGE_OWNER:-your-github-org}/exoscan-be:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -46,6 +47,7 @@ services:
 
   frontend:
     build: ./frontend
+    image: ghcr.io/${IMAGE_OWNER:-your-github-org}/exoscan-fe:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend
