@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.auth.router import router as auth_router
+from app.scans.router import router as scans_router
 
 
 @asynccontextmanager
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(scans_router, prefix="/api/v1")
 
 app.mount(
     "/static/screenshots",

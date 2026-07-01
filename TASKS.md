@@ -34,14 +34,15 @@
 
 ---
 
-## Phase 3: Scan Lifecycle (stub) [ ]
+## Phase 3: Scan Lifecycle (stub) [x]
 
-- [ ] `backend/app/scans/models.py` — Scan, ScanAsset, ScanLog, ScanCVE, SuggestedScan ORM models
-- [ ] `backend/app/scans/schemas.py` — CreateScanRequest (with modules, port_config), ScanResponse, AssetResponse
-- [ ] `backend/app/scans/service.py` — DB query helpers
-- [ ] `backend/app/scans/router.py` — CRUD routes + WebSocket /scans/{id}/logs
-- [ ] `backend/app/recon/orchestrator.py` — stub: creates scan, immediately marks complete, pushes one log line
-- [ ] WebSocket smoke test: `wscat -c ws://localhost:8000/api/v1/scans/{id}/logs?token=...` receives log replay
+- [x] `backend/app/scans/models.py` — Scan, ScanAsset, ScanLog, ScanCVE, SuggestedScan ORM models
+- [x] `backend/app/scans/schemas.py` — CreateScanRequest (with target/module/port_config validation), ScanResponse, AssetResponse, PagedScansResponse
+- [x] `backend/app/scans/service.py` — get_scan_or_404, list_scans, get_scan_results (bulk CVE+suggestion queries), scan_to_response
+- [x] `backend/app/scans/router.py` — POST/GET/DELETE /scans, GET /results, POST /trigger (501 stub), WS /logs
+- [x] `backend/app/recon/log_bus.py` — pub/sub: subscribe/unsubscribe/publish per scan_id
+- [x] `backend/app/recon/orchestrator.py` — stub: marks running, emits 5 log lines to DB + bus, marks complete
+- [ ] Smoke test: `docker compose up` → register → POST /scans → wscat receives log stream
 
 ---
 
@@ -149,3 +150,4 @@
 
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore
 - **Phase 2: Backend Auth** — config, database, User model, JWT service (bcrypt + python-jose), register/login/refresh/me routes, get_current_user dependency
+- **Phase 3: Scan Lifecycle** — Scan/ScanAsset/ScanLog/ScanCVE/SuggestedScan models; validated CreateScanRequest (target format, module set, CVE→fingerprint dependency); CRUD + results + WS routes; pub/sub log bus; stub orchestrator
