@@ -20,16 +20,16 @@
 
 ---
 
-## Phase 2: Backend Auth [ ]
+## Phase 2: Backend Auth [x]
 
-- [ ] `backend/app/config.py` — pydantic-settings Settings class
-- [ ] `backend/app/database.py` — async SQLAlchemy engine + AsyncSession factory
-- [ ] `backend/app/main.py` — FastAPI app factory, CORS, router registration, StaticFiles mount
-- [ ] `backend/app/dependencies.py` — `get_db()`, `get_current_user()`
-- [ ] `backend/app/auth/models.py` — User ORM model
-- [ ] `backend/app/auth/schemas.py` — RegisterRequest, LoginRequest, TokenResponse
-- [ ] `backend/app/auth/service.py` — bcrypt hashing, JWT encode/decode
-- [ ] `backend/app/auth/router.py` — POST /auth/register, /auth/login, /auth/refresh
+- [x] `backend/app/config.py` — pydantic-settings Settings class
+- [x] `backend/app/database.py` — async SQLAlchemy engine + AsyncSession factory
+- [x] `backend/app/main.py` — FastAPI app factory, CORS, router registration, StaticFiles mount
+- [x] `backend/app/dependencies.py` — `get_db()`, `get_current_user()`
+- [x] `backend/app/auth/models.py` — User ORM model
+- [x] `backend/app/auth/schemas.py` — RegisterRequest, LoginRequest, TokenResponse
+- [x] `backend/app/auth/service.py` — bcrypt hashing, JWT encode/decode
+- [x] `backend/app/auth/router.py` — POST /auth/register, /auth/login, /auth/refresh, GET /auth/me
 - [ ] Smoke test: `curl -X POST http://localhost:8000/api/v1/auth/register` returns tokens
 
 ---
@@ -148,3 +148,4 @@
 ## Completed Phases
 
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore
+- **Phase 2: Backend Auth** — config, database, User model, JWT service (bcrypt + python-jose), register/login/refresh/me routes, get_current_user dependency
