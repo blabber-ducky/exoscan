@@ -1,0 +1,38 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Node / frontend
+node_modules/
+dist/
+.next/
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docker
+.docker/
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Alembic
+backend/alembic/versions/*.pyc

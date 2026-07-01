@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - exoscan_net
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      NVD_API_KEY: ${NVD_API_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      SCREENSHOT_BASE_PATH: /app/static/screenshots
+      NUCLEI_TEMPLATES_PATH: /nuclei-templates
+      DOCKER_NETWORK: exoscan_net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - screenshots_vol:/app/static/screenshots
+      - nuclei_templates_vol:/nuclei-templates
+    ports:
+      - "8000:8000"
+    networks:
+      - exoscan_net
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - exoscan_net
+
+volumes:
+  postgres_data:
+  screenshots_vol:
+  nuclei_templates_vol:
+
+networks:
+  exoscan_net:
+    driver: bridge
+    name: exoscan_net
