@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from typing import Awaitable, Callable
 from urllib.parse import urlparse
 
+from sqlalchemy import select, update
+
 from app.database import AsyncSessionLocal
 from app.recon import log_bus
 from app.scans.models import Scan, ScanAsset, ScanLog
@@ -50,6 +52,7 @@ async def run_scan(scan_id: str) -> None:
         target = scan.target
         scan_type = scan.scan_type
         modules: set[str] = set(scan.modules or [])
+        port_config: dict = scan.port_config or {}
 
     log_fn = _make_log_fn(scan_id)
 
@@ -68,11 +71,9 @@ async def run_scan(scan_id: str) -> None:
         if scan_type in ("active", "comprehensive"):
             await _run_probe_stage(scan_id, scan_type, target, log_fn)
 
-        # Stage 3: Active recon per asset (Phase 8)
-        # if scan_type == "active":
-        #     await _run_active_stage(scan_id, target, modules, log_fn)
-        # elif scan_type == "comprehensive":
-        #     await _run_comprehensive_active_stage(scan_id, modules, log_fn)
+        # Stage 3: Active recon
+        if scan_type in ("active", "comprehensive"):
+            await _run_active_stage(scan_id, modules, port_config, log_fn)
 
         # Post: Generate suggestions (Phase 9)
         # await _generate_suggestions(scan_id, log_fn)
@@ -97,6 +98,110 @@ async def run_scan(scan_id: str) -> None:
                 scan.error_message = str(exc)
                 scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Stage 3: Active recon
+# ---------------------------------------------------------------------------
+
+async def _run_active_stage(
+    scan_id: str,
+    modules: set[str],
+    port_config: dict,
+    log_fn: _LogFn,
+) -> None:
+    """
+    Process all live assets concurrently (Semaphore(5)):
+      - portscan + fingerprint run in parallel per asset
+      - CVE detection follows fingerprinting per asset
+      - Screenshots run as a single GoWitness batch across all URLs (in parallel
+        with the per-asset processing above)
+    """
+    from app.recon.active import cve, fingerprint, portscan, screenshots
+
+    await log_fn("INFO", "orchestrator", "Stage 3: active recon")
+
+    async with AsyncSessionLocal() as db:
+        rows = await db.execute(
+            select(ScanAsset)
+            .where(ScanAsset.scan_id == uuid.UUID(scan_id))
+            .where(ScanAsset.scan_status == "live")
+        )
+        live_assets = list(rows.scalars().all())
+
+    if not live_assets:
+        await log_fn("WARN", "orchestrator", "No live assets — skipping active recon")
+        return
+
+    await log_fn(
+        "INFO", "orchestrator",
+        f"Active recon: {len(live_assets)} live asset(s)",
+    )
+
+    # Screenshots: one GoWitness container over all live URLs, running in
+    # the background while per-asset portscan/fingerprint/cve execute.
+    screenshot_task = None
+    if "screenshot_capture" in modules:
+        live_urls = [a.url for a in live_assets if a.url]
+        if live_urls:
+            screenshot_task = asyncio.create_task(
+                screenshots.run(scan_id, live_urls, log_fn)
+            )
+
+    # Per-asset concurrency cap: max 5 assets processed simultaneously.
+    # Each asset may spin up 2 containers (nmap + whatweb) so peak active
+    # containers = 5 × 2 + 1 (gowitness) = 11.
+    semaphore = asyncio.Semaphore(5)
+
+    async def _process(asset: ScanAsset) -> None:
+        try:
+            async with semaphore:
+                task_keys: list[str] = []
+                coros = []
+
+                if "port_scan" in modules:
+                    task_keys.append("ports")
+                    coros.append(portscan.run(scan_id, asset, port_config, log_fn))
+                if "tech_fingerprinting" in modules:
+                    task_keys.append("tech")
+                    coros.append(fingerprint.run(scan_id, asset, log_fn))
+
+                techs: list[dict] = []
+                if coros:
+                    raw = await asyncio.gather(*coros, return_exceptions=True)
+                    per_results = dict(zip(task_keys, raw))
+
+                    ports = _safe(per_results, "ports", [])
+                    techs = _safe(per_results, "tech", [])
+
+                    values: dict = {}
+                    if ports is not None:
+                        values["open_ports"] = ports
+                    if techs is not None:
+                        values["technologies"] = techs
+                    if values:
+                        async with AsyncSessionLocal() as db:
+                            await db.execute(
+                                update(ScanAsset)
+                                .where(ScanAsset.id == asset.id)
+                                .values(**values)
+                            )
+                            await db.commit()
+
+                if "cve_detection" in modules and techs:
+                    await cve.run(scan_id, asset.id, techs, log_fn)
+
+        except Exception as exc:
+            label = asset.hostname or str(asset.url)
+            await log_fn(
+                "ERROR", "orchestrator",
+                f"Active recon failed for {label}: {exc}",
+            )
+
+    await asyncio.gather(*[_process(a) for a in live_assets])
+
+    if screenshot_task:
+        await screenshot_task
 
 
 # ---------------------------------------------------------------------------
