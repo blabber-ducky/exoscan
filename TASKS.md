@@ -164,12 +164,12 @@
 
 ---
 
-## Phase 12: Documentation [ ]
+## Phase 12: Documentation [x]
 
-- [ ] `docs/architecture.md` — Mermaid system diagram + scan lifecycle sequence diagram
-- [ ] `docs/developer.md` — dev guide (module extension, migrations, testing containers)
-- [ ] `docs/user.md` — end-user guide (scan types, modules, results interpretation, responsible use)
-- [ ] Update `CLAUDE.md` if any patterns changed during implementation
+- [x] `docs/architecture.md` — ASCII system diagram (Docker host layout, 3 services, 3 volumes, exoscan_net); scan lifecycle sequence diagram (5 columns: Browser→Frontend→Backend API→Orchestrator→Kali containers); backend package layout tree; key design decisions (no Celery, ephemeral containers, pub/sub log bus, nuclei volume, screenshot pipeline, suggestion generation)
+- [x] `docs/developer.md` — prerequisites + first-time setup; env var reference table; alembic migration workflow; step-by-step guide to adding a passive module, active module, and secondary scan template; run-a-tool-in-isolation section (manual Kali container + run_ephemeral from Python shell); frontend-outside-Docker dev workflow; code style notes (no comments, no shell=True, shlex.quote rule, asyncio.gather usage)
+- [x] `docs/user.md` — plain-English scan type descriptions (passive/active/comprehensive); per-module table with tool and what it does; CVE Detection dependency explanation; port config preset table + custom syntax; results page guide (scan progress, stage stepper, WS log stream, passive panel tabs, asset card anatomy, suggested scans priority system); asset scan status table (live/unreachable/timeout/filtered); limitations section (rate limiting, CVE coverage, screenshot reliability, container cold start, nuclei update lag); responsible use statement
+- [x] `CLAUDE.md` — no changes needed; all patterns documented in CLAUDE.md already reflect the final implementation
 
 ---
 
@@ -186,3 +186,4 @@
 - **Phase 9: Secondary Scan Suggestions** — templates.py (6 tech keys + _default; frozen ScanTemplate dataclass), suggestions.py (CVE-boosted priority, substring tech match, per-asset dedup), executor.py (5 scan_type dispatch, shlex.quote, nuclei vol mount, _summarise per type); orchestrator wired in _process(); trigger endpoint implemented (running→completed/failed lifecycle)
 - **Phase 10: Frontend** — Vite 5 + Tailwind v4 + shadcn/ui (12 Radix components); 4-step NewScanForm wizard; JWT Axios client with refresh-retry; Zustand auth + scan stores; TanStack Query for API data; WebSocket log streaming via useScanLogs; LogViewer terminal; ScanProgress stepper; PassiveReconPanel (DNS/Subdomains/Dorks tabs); AssetGrid/AssetCard with screenshots, tech badges, CVE list, SuggestedScans trigger buttons; dark emerald theme
 - **Phase 11: Security Hardening** — slowapi Limiter (5/min per IP on register/login/refresh); port range sanity check (_valid_port_ranges: 1–65535 bounds, range start≤end); audit confirmed shlex.quote on all user-derived shell args, CORS locked to FRONTEND_URL, no shell=True anywhere
+- **Phase 12: Documentation** — docs/architecture.md (system diagram + sequence diagram + package layout + design decisions), docs/developer.md (setup + migrations + module extension guides + isolation testing), docs/user.md (scan types + modules + results interpretation + limitations + responsible use)
