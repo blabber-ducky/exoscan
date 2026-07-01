@@ -32,6 +32,8 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       SCREENSHOT_BASE_PATH: /app/static/screenshots
       NUCLEI_TEMPLATES_PATH: /nuclei-templates
+      NUCLEI_TEMPLATES_VOLUME: exoscan_nuclei_templates_vol
+      SCREENSHOTS_VOLUME: exoscan_screenshots_vol
       DOCKER_NETWORK: exoscan_net
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -54,8 +56,11 @@ services:
 
 volumes:
   postgres_data:
+    name: exoscan_postgres_data
   screenshots_vol:
+    name: exoscan_screenshots_vol
   nuclei_templates_vol:
+    name: exoscan_nuclei_templates_vol
 
 networks:
   exoscan_net:

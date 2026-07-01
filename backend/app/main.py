@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,10 @@ from app.scans.router import router as scans_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(settings.screenshot_base_path, exist_ok=True)
+
+    from app.nuclei.updater import nuclei_update_loop
+    asyncio.create_task(nuclei_update_loop())
+
     yield
 
 

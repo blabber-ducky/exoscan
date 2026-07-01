@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     screenshot_base_path: str = "/app/static/screenshots"
     nuclei_templates_path: str = "/nuclei-templates"
+    # Explicit Docker volume names (must match the `name:` fields in docker-compose.yml
+    # so that ephemeral Kali containers can reference the same volumes by name)
+    nuclei_templates_volume: str = "exoscan_nuclei_templates_vol"
+    screenshots_volume: str = "exoscan_screenshots_vol"
     docker_network: str = "exoscan_net"
 
 

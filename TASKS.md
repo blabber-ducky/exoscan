@@ -55,11 +55,13 @@
 
 ---
 
-## Phase 5: Nuclei Template Updater [ ]
+## Phase 5: Nuclei Template Updater [x]
 
-- [ ] `backend/app/nuclei/updater.py` — `update_templates()` + `nuclei_update_loop()` (24h asyncio task)
-- [ ] Wire `nuclei_update_loop()` into `main.py` startup lifespan
-- [ ] Verify: `docker volume inspect nuclei_templates_vol` shows data after backend starts
+- [x] `backend/app/nuclei/updater.py` — `_is_stale()` checks `.exoscan_last_updated` marker; `update_templates()` runs nuclei in fresh Kali container with `nuclei_templates_vol` mounted rw; `nuclei_update_loop()` runs on startup then sleeps 24h; failed updates logged but non-fatal
+- [x] Wire `nuclei_update_loop()` into `main.py` lifespan via `asyncio.create_task()`
+- [x] `docker-compose.yml` — added explicit `name:` to all three volumes so ephemeral Kali containers reference them without compose project-name prefix
+- [x] `config.py` — added `nuclei_templates_volume` + `screenshots_volume` settings (passed via docker-compose env vars)
+- [ ] Manual verify: `docker compose up` → backend logs show "Nuclei: starting template update"; `docker volume inspect exoscan_nuclei_templates_vol` shows files
 
 ---
 
@@ -152,3 +154,4 @@
 - **Phase 2: Backend Auth** — config, database, User model, JWT service (bcrypt + python-jose), register/login/refresh/me routes, get_current_user dependency
 - **Phase 3: Scan Lifecycle** — Scan/ScanAsset/ScanLog/ScanCVE/SuggestedScan models; validated CreateScanRequest (target format, module set, CVE→fingerprint dependency); CRUD + results + WS routes; pub/sub log bus; stub orchestrator
 - **Phase 4: Docker Manager** — lazy Docker client singleton; thread-based async log streamer; run_ephemeral() with apt-install, timeout, firewall detection, container ID tracking, file extraction, guaranteed cleanup
+- **Phase 5: Nuclei Updater** — staleness-checked background loop (24h); apt-installs nuclei in Kali container; rw-mounts nuclei_templates_vol; marks fresh on success; wired into lifespan; explicit volume names added to docker-compose.yml
