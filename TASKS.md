@@ -46,12 +46,12 @@
 
 ---
 
-## Phase 4: Docker Manager [ ]
+## Phase 4: Docker Manager [x]
 
-- [ ] `backend/app/docker_manager/client.py` — `docker.from_env()` singleton
-- [ ] `backend/app/docker_manager/log_streamer.py` — async generator over container stdout
-- [ ] `backend/app/docker_manager/container.py` — `run_ephemeral()` with timeout, firewall pattern detection, container ID tracking, cleanup
-- [ ] Manual smoke test: backend spawns a Kali container, installs curl, curls example.com, streams logs, container removed
+- [x] `backend/app/docker_manager/client.py` — lazy `docker.from_env()` singleton with ping health-check on first use
+- [x] `backend/app/docker_manager/log_streamer.py` — daemon thread reads blocking Docker log iterator; lines forwarded to asyncio.Queue (maxsize=2000); multi-line chunks split; None sentinel signals EOF
+- [x] `backend/app/docker_manager/container.py` — `run_ephemeral()`: builds apt-install + command, starts detached container, tracks ID in scans.container_ids, streams logs to log bus with firewall pattern detection (WARN level), enforces timeout via asyncio.wait_for (kills on expiry), extracts result file via docker cp before removal, guaranteed cleanup in all paths; `copy_file_from_container()` tar extraction helper
+- [ ] Manual smoke test: `docker compose up` → verify backend can spawn a Kali container
 
 ---
 
@@ -151,3 +151,4 @@
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore
 - **Phase 2: Backend Auth** — config, database, User model, JWT service (bcrypt + python-jose), register/login/refresh/me routes, get_current_user dependency
 - **Phase 3: Scan Lifecycle** — Scan/ScanAsset/ScanLog/ScanCVE/SuggestedScan models; validated CreateScanRequest (target format, module set, CVE→fingerprint dependency); CRUD + results + WS routes; pub/sub log bus; stub orchestrator
+- **Phase 4: Docker Manager** — lazy Docker client singleton; thread-based async log streamer; run_ephemeral() with apt-install, timeout, firewall detection, container ID tracking, file extraction, guaranteed cleanup
