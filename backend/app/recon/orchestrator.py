@@ -75,9 +75,6 @@ async def run_scan(scan_id: str) -> None:
         if scan_type in ("active", "comprehensive"):
             await _run_active_stage(scan_id, modules, port_config, log_fn)
 
-        # Post: Generate suggestions (Phase 9)
-        # await _generate_suggestions(scan_id, log_fn)
-
         await log_fn("INFO", "orchestrator", "Scan completed successfully")
         await log_bus.publish(scan_id, json.dumps({"type": "complete"}))
 
@@ -190,6 +187,9 @@ async def _run_active_stage(
 
                 if "cve_detection" in modules and techs:
                     await cve.run(scan_id, asset.id, techs, log_fn)
+
+                from app.recon.secondary.suggestions import generate_suggestions
+                await generate_suggestions(asset, techs, log_fn)
 
         except Exception as exc:
             label = asset.hostname or str(asset.url)

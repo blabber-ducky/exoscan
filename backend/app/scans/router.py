@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime, timezone
 from math import ceil
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -129,16 +130,24 @@ async def trigger_suggested_scan(
     if not suggestion:
         raise HTTPException(status_code=404, detail="Suggested scan not found")
 
-    if suggestion.status != "suggested":
+    if suggestion.status not in ("suggested", "failed"):
         raise HTTPException(
             status_code=409,
             detail=f"Suggested scan is already {suggestion.status}",
         )
 
-    # executor.trigger() is wired in Phase 9; return accepted for now
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Follow-up scan execution not yet implemented (Phase 9)",
+    suggestion.status = "running"
+    suggestion.triggered_by = current_user.id
+    suggestion.triggered_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    from app.recon.secondary import executor as secondary_executor
+    asyncio.create_task(secondary_executor.trigger_suggested_scan(str(suggested_id)))
+
+    return TriggerSuggestedResponse(
+        suggested_scan_id=str(suggested_id),
+        status="running",
+        message="Scan triggered — results will appear in result_summary when complete",
     )
 
 
