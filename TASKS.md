@@ -109,26 +109,46 @@
 
 ---
 
-## Phase 10: Frontend [ ]
+## Phase 10: Frontend [x]
 
-- [ ] `frontend/package.json` — React 18, Vite 5, Tailwind v4, shadcn/ui, TanStack Query v5, Zustand, React Router v6, Axios, React Hook Form, Zod, Sonner, Lucide React
-- [ ] Vite + Tailwind + TypeScript config files
-- [ ] shadcn/ui init + base components (Button, Card, Badge, Dialog, Tabs, Checkbox, Input, Label, RadioGroup, Separator, Tooltip, Sonner)
-- [ ] `src/api/client.ts` — Axios instance + JWT interceptor + 401 refresh
-- [ ] `src/api/auth.ts`, `src/api/scans.ts`, `src/api/ws.ts`
-- [ ] `src/store/authStore.ts`, `src/store/scanStore.ts`
-- [ ] `src/types/index.ts`
-- [ ] `src/hooks/useAuth.ts`, `useScans.ts`, `useScanResults.ts`, `useScanLogs.ts`
-- [ ] `src/components/layout/Navbar.tsx`, `Layout.tsx`
-- [ ] `src/components/auth/LoginForm.tsx`, `RegisterForm.tsx`
-- [ ] `src/pages/LoginPage.tsx`, `RegisterPage.tsx`
-- [ ] `src/components/scans/NewScanForm.tsx` — 4-step wizard (type → target → modules → port config)
-- [ ] `src/components/scans/ScanCard.tsx`, `ScanProgress.tsx`, `LogViewer.tsx`, `ScanStatusBadge.tsx`
-- [ ] `src/pages/DashboardPage.tsx`
-- [ ] `src/pages/ScanPage.tsx` — live progress + LogViewer, auto-redirect on complete
-- [ ] `src/components/results/PassiveReconPanel.tsx` — DNS / Subdomains / Dork Hits tabs
-- [ ] `src/components/results/AssetCard.tsx`, `AssetGrid.tsx`, `TechBadge.tsx`, `CVEList.tsx`, `SuggestedScans.tsx`
-- [ ] `src/pages/ResultsPage.tsx`
+- [x] `frontend/package.json` — React 18, Vite 5, Tailwind v4 + @tailwindcss/vite, Radix UI primitives, TanStack Query v5, Zustand v5, React Router v6, Axios, React Hook Form + Zod, Sonner, Lucide React, clsx + tailwind-merge + cva
+- [x] `vite.config.ts` — @tailwindcss/vite plugin, @/→src alias, /api+/static dev proxy to :8000
+- [x] `tsconfig.json` — ESNext/bundler moduleResolution, jsx=react-jsx, @/* path alias
+- [x] `index.html` — class="dark" on <html> for dark-first theme
+- [x] `src/index.css` — Tailwind v4 @import, @theme inline mapping CSS vars to Tailwind color names, :root + .dark OKLCH color variables (emerald primary, near-black background)
+- [x] `src/lib/utils.ts` — cn() helper (clsx + tailwind-merge)
+- [x] `src/types/index.ts` — Scan, ScanAsset, Technology, CVE, SuggestedScan, OpenPort, DnsRecord, DorkHit, WsLogLine, TokenPair, User, PagedScans, CreateScanPayload
+- [x] `src/api/client.ts` — Axios + Bearer token interceptor + 401 refresh-and-retry (single in-flight _refreshing promise prevents concurrent refresh races)
+- [x] `src/api/auth.ts`, `src/api/scans.ts` — typed API wrappers
+- [x] `src/api/ws.ts` — createScanLogSocket(): derives wss:/ws: from window.location.protocol, delegates to onMessage/onClose callbacks; skips ping frames
+- [x] `src/store/authStore.ts` — Zustand + zustand/middleware persist (localStorage key "auth")
+- [x] `src/store/scanStore.ts` — Zustand for log lines, WS status, terminal status; reset() for navigation
+- [x] `src/hooks/useAuth.ts` — useLogin, useRegister (TanStack Query mutations → setTokens + authApi.me), useLogout
+- [x] `src/hooks/useScans.ts` — useScanList (5s poll), useScan (3s poll while running/pending), useCreateScan (→/scans/:id), useDeleteScan, useTriggerSuggested
+- [x] `src/hooks/useScanResults.ts` — useQuery with 30s staleTime
+- [x] `src/hooks/useScanLogs.ts` — opens WS on mount, writes to scanStore, handles complete/error events, closes WS on unmount
+- [x] shadcn/ui components: Button (cva variants), Card/CardHeader/CardContent/CardFooter, Badge (cva), Input, Label (Radix), Checkbox (Radix), RadioGroup (Radix), Separator (Radix), Tabs (Radix), Dialog (Radix + portal), Tooltip (Radix + portal), Sonner (Toaster wrapper)
+- [x] `Navbar.tsx` — sticky, ScanSearch logo, username display, logout button
+- [x] `Layout.tsx` — Navbar + <Outlet /> with max-w-7xl padding
+- [x] `LoginForm.tsx`, `RegisterForm.tsx` — RHF + Zod, sonner error toasts
+- [x] `LoginPage.tsx`, `RegisterPage.tsx` — redirect to /dashboard if already authed
+- [x] `NewScanForm.tsx` — 4-step wizard: 1) scan type radio cards; 2) target text input with per-type regex validation; 3) module checkboxes (passive/active sections, cve_detection auto-disabled when tech_fingerprinting unchecked); 4) port config presets + custom input (only shown when port_scan selected); step counter + back/next/submit nav
+- [x] `ScanCard.tsx` — icon per scan_type, ScanStatusBadge, asset/CVE counts, delete + view buttons
+- [x] `ScanStatusBadge.tsx` — variant Badge per status (pending/running with pulse/completed green/failed red)
+- [x] `LogViewer.tsx` — fixed-height terminal div, auto-scroll to bottom on new lines, level-colored output (WARN=yellow, ERROR=red)
+- [x] `ScanProgress.tsx` — stage stepper derived from scan_type + latest log stage; done/active/pending states
+- [x] `PassiveReconPanel.tsx` — Tabs: DNS records table (type/name/value), subdomain list with status dots, dork hits with URL+title+snippet
+- [x] `TechBadge.tsx` — Badge with name + dimmed version, Tooltip shows confidence
+- [x] `CVEList.tsx` — per-CVE severity badge + cve_id link to NVD + CVSS score + description excerpt
+- [x] `SuggestedScans.tsx` — sorted by priority; trigger button fires useTriggerSuggested; running=spinner, completed=check, failed=X; result_summary shown when complete
+- [x] `AssetCard.tsx` — screenshot preview, hostname/url/status_code/WAF header, tech badges, port/CVE/suggestion counts; expand toggle → Tabs (Ports/CVEs/Suggested); live assets full opacity, non-live at 70%
+- [x] `AssetGrid.tsx` — 3-col responsive grid, live assets first sorted by CVE count
+- [x] `DashboardPage.tsx` — scan list + "New Scan" Dialog; empty state CTA; polls via useScanList
+- [x] `ScanPage.tsx` — scan metadata, ScanProgress, LogViewer, WS status indicator; auto-redirects to /results 1.5s after WS complete event
+- [x] `ResultsPage.tsx` — stats row (assets/live/CVEs), PassiveReconPanel for passive/comprehensive, AssetGrid for all types
+- [x] `router.tsx` — RequireAuth guard, /login + /register (redirect if authed), / → /dashboard
+- [x] `App.tsx` — QueryClientProvider + RouterProvider + Toaster
+- [x] `frontend/Dockerfile` — changed npm ci → npm install (no lock file to commit)
 - [ ] End-to-end UI test: full comprehensive scan visible in browser
 
 ---
@@ -164,3 +184,4 @@
 - **Phase 7: Liveness Probe** — migration 002 (url nullable, dns_records default fix); probe.py (Semaphore(20), https→http fallback, verify=False, WAF detection, bulk DB update); orchestrator Stage 2 wired for active+comprehensive; active scans get initial ScanAsset created before probe runs
 - **Phase 8: Active Recon** — portscan.py (nmap XML, port_config presets), fingerprint.py (WhatWeb JSON), screenshots.py (GoWitness batch + SQLite mapping), cve.py (NVD v2 + DB cache + CVSS filter); orchestrator Stage 3 wired with Semaphore(5) per-asset + GoWitness background task
 - **Phase 9: Secondary Scan Suggestions** — templates.py (6 tech keys + _default; frozen ScanTemplate dataclass), suggestions.py (CVE-boosted priority, substring tech match, per-asset dedup), executor.py (5 scan_type dispatch, shlex.quote, nuclei vol mount, _summarise per type); orchestrator wired in _process(); trigger endpoint implemented (running→completed/failed lifecycle)
+- **Phase 10: Frontend** — Vite 5 + Tailwind v4 + shadcn/ui (12 Radix components); 4-step NewScanForm wizard; JWT Axios client with refresh-retry; Zustand auth + scan stores; TanStack Query for API data; WebSocket log streaming via useScanLogs; LogViewer terminal; ScanProgress stepper; PassiveReconPanel (DNS/Subdomains/Dorks tabs); AssetGrid/AssetCard with screenshots, tech badges, CVE list, SuggestedScans trigger buttons; dark emerald theme
