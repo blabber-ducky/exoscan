@@ -44,6 +44,30 @@ def _is_url(s: str) -> bool:
     return bool(_URL_RE.match(s))
 
 
+def _valid_port_ranges(ports_str: str) -> bool:
+    """Confirm every port/range token is within 1–65535 and ranges have start ≤ end."""
+    for token in ports_str.split(","):
+        token = token.strip()
+        if not token:
+            return False
+        if "-" in token:
+            parts = token.split("-", 1)
+            try:
+                lo, hi = int(parts[0]), int(parts[1])
+            except ValueError:
+                return False
+            if not (1 <= lo <= 65535 and 1 <= hi <= 65535 and lo <= hi):
+                return False
+        else:
+            try:
+                p = int(token)
+            except ValueError:
+                return False
+            if not 1 <= p <= 65535:
+                return False
+    return True
+
+
 # --- Nested config ---
 
 class PortConfig(BaseModel):
@@ -58,6 +82,10 @@ class PortConfig(BaseModel):
             if not _PORT_RANGE_RE.match(self.ports):
                 raise ValueError(
                     "ports must be comma-separated numbers or ranges, e.g. 80,443,8080-8090"
+                )
+            if not _valid_port_ranges(self.ports):
+                raise ValueError(
+                    "all port numbers must be in range 1–65535; ranges must have start ≤ end"
                 )
         return self
 

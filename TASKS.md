@@ -153,14 +153,14 @@
 
 ---
 
-## Phase 11: Security Hardening [ ]
+## Phase 11: Security Hardening [x]
 
-- [ ] Target input validation — domain/IP/URL regex validators in `scans/schemas.py`
-- [ ] Port config validation — regex `^[\d,\-]+$` + range sanity check
-- [ ] `shlex.quote()` audit — verify all tool command strings use it for any user-derived value
-- [ ] CORS locked to `FRONTEND_URL` env var only
-- [ ] `slowapi` rate limiting on auth endpoints (5 req/min per IP)
-- [ ] Review: no `shell=True` with user input anywhere in codebase
+- [x] Target input validation — _DOMAIN_RE / _URL_RE / _is_ipv4 validators already in CreateScanRequest; model_validator enforces per scan_type (active→URL or IPv4, passive/comprehensive→domain or IPv4)
+- [x] Port config validation — _PORT_RANGE_RE format check + new _valid_port_ranges() sanity check (all tokens must parse as ints 1–65535; ranges must have start ≤ end)
+- [x] `shlex.quote()` audit — confirmed: dns.py, subdomains.py, portscan.py, fingerprint.py, screenshots.py, executor.py all quote user-derived shell arguments; container.py quotes tool names; no unquoted user value interpolated into any command string
+- [x] CORS locked — `allow_origins=[settings.frontend_url]` already in place; only the `FRONTEND_URL` env var origin is allowed
+- [x] `slowapi` rate limiting — `app/limiter.py` (Limiter with get_remote_address key); SlowAPIMiddleware + RateLimitExceeded handler wired into main.py; `@limiter.limit("5/minute")` on /auth/register, /auth/login, /auth/refresh; request: Request added as first param per slowapi requirement
+- [x] No `shell=True` — grep confirmed: zero uses of shell=True across entire backend codebase; all Docker containers use the Docker SDK (not subprocess); shlex usage is for quoting args passed to container command strings, not shell invocation
 
 ---
 
@@ -185,3 +185,4 @@
 - **Phase 8: Active Recon** — portscan.py (nmap XML, port_config presets), fingerprint.py (WhatWeb JSON), screenshots.py (GoWitness batch + SQLite mapping), cve.py (NVD v2 + DB cache + CVSS filter); orchestrator Stage 3 wired with Semaphore(5) per-asset + GoWitness background task
 - **Phase 9: Secondary Scan Suggestions** — templates.py (6 tech keys + _default; frozen ScanTemplate dataclass), suggestions.py (CVE-boosted priority, substring tech match, per-asset dedup), executor.py (5 scan_type dispatch, shlex.quote, nuclei vol mount, _summarise per type); orchestrator wired in _process(); trigger endpoint implemented (running→completed/failed lifecycle)
 - **Phase 10: Frontend** — Vite 5 + Tailwind v4 + shadcn/ui (12 Radix components); 4-step NewScanForm wizard; JWT Axios client with refresh-retry; Zustand auth + scan stores; TanStack Query for API data; WebSocket log streaming via useScanLogs; LogViewer terminal; ScanProgress stepper; PassiveReconPanel (DNS/Subdomains/Dorks tabs); AssetGrid/AssetCard with screenshots, tech badges, CVE list, SuggestedScans trigger buttons; dark emerald theme
+- **Phase 11: Security Hardening** — slowapi Limiter (5/min per IP on register/login/refresh); port range sanity check (_valid_port_ranges: 1–65535 bounds, range start≤end); audit confirmed shlex.quote on all user-derived shell args, CORS locked to FRONTEND_URL, no shell=True anywhere
