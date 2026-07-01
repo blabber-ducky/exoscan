@@ -61,7 +61,7 @@ class ScanAsset(Base):
         ForeignKey("scans.id", ondelete="CASCADE"),
         nullable=False,
     )
-    url: Mapped[str] = mapped_column(String(512), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
     hostname: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status_code: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
@@ -73,8 +73,8 @@ class ScanAsset(Base):
     headers: Mapped[dict] = mapped_column(
         JSONB, server_default="'{}'::jsonb", nullable=False
     )
-    dns_records: Mapped[dict] = mapped_column(
-        JSONB, server_default="'{}'::jsonb", nullable=False
+    dns_records: Mapped[list] = mapped_column(
+        JSONB, server_default="'[]'::jsonb", nullable=False
     )
     waf_detected: Mapped[str | None] = mapped_column(String(100), nullable=True)
     scan_status: Mapped[str] = mapped_column(

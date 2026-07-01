@@ -21,6 +21,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
+from urllib.parse import urlparse
 
 from app.database import AsyncSessionLocal
 from app.recon import log_bus
@@ -63,9 +64,9 @@ async def run_scan(scan_id: str) -> None:
         if scan_type in ("passive", "comprehensive"):
             await _run_passive_stage(scan_id, target, modules, log_fn)
 
-        # Stage 2: Liveness probe (Phase 7)
-        # if scan_type in ("active", "comprehensive"):
-        #     await _run_probe_stage(scan_id, log_fn)
+        # Stage 2: Liveness probe
+        if scan_type in ("active", "comprehensive"):
+            await _run_probe_stage(scan_id, scan_type, target, log_fn)
 
         # Stage 3: Active recon per asset (Phase 8)
         # if scan_type == "active":
@@ -96,6 +97,42 @@ async def run_scan(scan_id: str) -> None:
                 scan.error_message = str(exc)
                 scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Stage 2: Liveness probe
+# ---------------------------------------------------------------------------
+
+async def _run_probe_stage(
+    scan_id: str,
+    scan_type: str,
+    target: str,
+    log_fn: _LogFn,
+) -> None:
+    from app.recon import probe
+
+    await log_fn("INFO", "orchestrator", "Stage 2: liveness probe")
+
+    if scan_type == "active":
+        # No passive stage ran — create the initial asset for the target URL
+        await _create_active_target_asset(scan_id, target)
+
+    await probe.probe_all_assets(scan_id, log_fn)
+
+
+async def _create_active_target_asset(scan_id: str, target: str) -> None:
+    """Create the initial ScanAsset for an active scan (no passive stage)."""
+    parsed = urlparse(target)
+    hostname = parsed.hostname or target
+
+    async with AsyncSessionLocal() as db:
+        db.add(ScanAsset(
+            scan_id=uuid.UUID(scan_id),
+            url=target,
+            hostname=hostname,
+            scan_status="live",  # probe will update this
+        ))
+        await db.commit()
 
 
 # ---------------------------------------------------------------------------
