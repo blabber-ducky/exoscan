@@ -273,6 +273,7 @@ docker compose exec backend alembic upgrade head
 
 | File | Contents |
 |------|----------|
+| [`docs/deployment.md`](docs/deployment.md) | Initial deploy, updates, backup/restore, server migration, troubleshooting |
 | [`docs/architecture.md`](docs/architecture.md) | System diagram, scan lifecycle sequence, package layout, design decisions |
 | [`docs/developer.md`](docs/developer.md) | Setup, migrations, module extension guides, isolation testing |
 | [`docs/user.md`](docs/user.md) | Scan types, module reference, results interpretation, responsible use |

@@ -102,7 +102,10 @@ No schema changes needed.
 
 ## Documentation
 
-- `docs/architecture.md` — system diagrams (generated once project is usable)
-- `docs/developer.md` — developer guide
-- `docs/user.md` — end-user guide
+- `docs/deployment.md` — initial deploy, updates, backup/restore, server migration, troubleshooting; **keep updated whenever deployment behaviour changes** (new env vars, new volumes, migrations workflow changes, wget instructions)
+- `docs/architecture.md` — system diagrams, package layout, design decisions
+- `docs/developer.md` — developer guide, env vars, module extension guides
+- `docs/user.md` — end-user guide (scan types, sharing, admin panel)
 - `TASKS.md` — phase and task tracker (updated with each git commit)
+
+All docs must be updated in the same commit as any feature that changes deployment, env vars, API routes, or user-facing behaviour.
