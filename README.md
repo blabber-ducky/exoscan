@@ -41,8 +41,8 @@ No git clone or build step required. Pre-built multi-arch images (`linux/amd64` 
 
 ```bash
 # Download the two required files
-wget https://raw.githubusercontent.com/<repo>/main/docker-compose.yml
-wget https://raw.githubusercontent.com/<repo>/main/.env.example -O .env
+wget https://raw.githubusercontent.com/blabber-ducky/exoscan/main/docker-compose.yml
+wget https://raw.githubusercontent.com/blabber-ducky/exoscan/main/.env.example -O .env
 
 # Edit .env — minimum required values:
 #   SECRET_KEY        → openssl rand -hex 32
@@ -60,7 +60,7 @@ See [`docs/deployment.md`](docs/deployment.md) for updates, backup/restore, serv
 ### Development (build from source)
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/blabber-ducky/exoscan.git
 cd exoscan
 cp .env.example .env   # generate SECRET_KEY: openssl rand -hex 32
 docker compose up --build

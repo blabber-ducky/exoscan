@@ -9,7 +9,7 @@
 ## First-Time Setup
 
 ```bash
-git clone <repo>
+git clone https://github.com/blabber-ducky/exoscan.git
 cd exoscan
 cp .env.example .env
 # Edit .env — at minimum set SECRET_KEY:

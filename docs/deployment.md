@@ -14,8 +14,8 @@ No git clone or build step required.
 
 ```bash
 # 1. Download the two required files
-wget https://raw.githubusercontent.com/<repo>/main/docker-compose.yml
-wget https://raw.githubusercontent.com/<repo>/main/.env.example -O .env
+wget https://raw.githubusercontent.com/blabber-ducky/exoscan/main/docker-compose.yml
+wget https://raw.githubusercontent.com/blabber-ducky/exoscan/main/.env.example -O .env
 
 # 2. Edit .env — minimum required values:
 #   SECRET_KEY        → openssl rand -hex 32
@@ -163,7 +163,7 @@ scp exoscan_db.sql.gz screenshots.tar.gz .env user@new-server:~/exoscan/
 # On the new server
 cd ~/exoscan
 
-wget https://raw.githubusercontent.com/<repo>/main/docker-compose.yml
+wget https://raw.githubusercontent.com/blabber-ducky/exoscan/main/docker-compose.yml
 
 # .env was copied from the old server — update FRONTEND_URL if the IP/domain changed
 
