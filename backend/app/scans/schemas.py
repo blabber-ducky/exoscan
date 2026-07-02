@@ -239,6 +239,11 @@ class UserSummarySchema(BaseModel):
     username: str
 
 
+class CreateGroupRequest(BaseModel):
+    name: str
+    description: str | None = None
+
+
 class GroupSummarySchema(BaseModel):
     id: str
     name: str

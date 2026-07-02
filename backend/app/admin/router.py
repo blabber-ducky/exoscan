@@ -9,6 +9,7 @@ from app.dependencies import get_db, require_admin
 from app.scans.schemas import (
     AddMemberRequest,
     AdminUserResponse,
+    CreateGroupRequest,
     GroupMemberResponse,
     GroupResponse,
     GroupSummarySchema,
@@ -110,7 +111,7 @@ async def list_groups(
 
 @router.post("/groups", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
 async def create_group(
-    body: GroupSummarySchema,
+    body: CreateGroupRequest,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
