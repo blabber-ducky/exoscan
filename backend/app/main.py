@@ -11,6 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import settings
 from app.limiter import limiter
+from app.admin.router import router as admin_router
 from app.auth.router import router as auth_router
 from app.scans.router import router as scans_router
 
@@ -41,6 +42,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(scans_router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
 
 app.mount(
     "/static/screenshots",

@@ -5,21 +5,27 @@ from datetime import datetime, timezone
 from math import ceil
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User
+from app.auth.models import Group, GroupMember, User
 from app.database import AsyncSessionLocal
 from app.dependencies import get_current_user, get_db
 from app.recon import log_bus
 from app.recon.orchestrator import run_scan
-from app.scans.models import Scan, ScanLog, SuggestedScan
+from app.scans.models import Scan, ScanLog, ScanShare, SuggestedScan
 from app.scans.schemas import (
+    AddMemberRequest,
     CreateScanRequest,
+    GroupSummarySchema,
     PagedScansResponse,
     ScanResponse,
     ScanResultsResponse,
+    ScanShareResponse,
+    ShareWithGroupRequest,
+    ShareWithUserRequest,
     TriggerSuggestedResponse,
+    UserSummarySchema,
 )
 from app.scans import service
 
@@ -60,9 +66,17 @@ async def list_scans(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    scans, total = await service.list_scans(db, current_user.id, page, limit)
+    rows, total = await service.list_scans(db, current_user.id, page, limit)
+    items = [
+        service.scan_to_response(
+            scan,
+            is_owner=scan.user_id == current_user.id,
+            owner_username=None if scan.user_id == current_user.id else owner_username,
+        )
+        for scan, owner_username in rows
+    ]
     return PagedScansResponse(
-        items=[service.scan_to_response(s) for s in scans],
+        items=items,
         total=total,
         page=page,
         limit=limit,
@@ -76,8 +90,12 @@ async def get_scan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    scan = await service.get_scan_or_404(db, scan_id, current_user.id)
-    return service.scan_to_response(scan)
+    scan, is_owner, owner_username = await service.get_accessible_scan_or_404(db, scan_id, current_user.id)
+    return service.scan_to_response(
+        scan,
+        is_owner=is_owner,
+        owner_username=None if is_owner else owner_username,
+    )
 
 
 @router.delete("/{scan_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,7 +107,6 @@ async def delete_scan(
     scan = await service.get_scan_or_404(db, scan_id, current_user.id)
 
     if scan.status == "running":
-        # Kill any tracked containers (implemented in Phase 4)
         scan.status = "cancelled"
         await db.commit()
     else:
@@ -107,7 +124,181 @@ async def get_scan_results(
 
 
 # ---------------------------------------------------------------------------
-# Suggested scan trigger
+# Sharing
+# ---------------------------------------------------------------------------
+
+@router.get("/{scan_id}/shares", response_model=list[ScanShareResponse])
+async def list_scan_shares(
+    scan_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.get_scan_or_404(db, scan_id, current_user.id)
+    return await service.list_shares(db, scan_id)
+
+
+@router.post("/{scan_id}/shares/users", response_model=ScanShareResponse, status_code=status.HTTP_201_CREATED)
+async def share_with_user(
+    scan_id: uuid.UUID,
+    body: ShareWithUserRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.get_scan_or_404(db, scan_id, current_user.id)
+
+    try:
+        target_id = uuid.UUID(body.user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
+
+    if target_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot share a scan with yourself")
+
+    target = await db.execute(select(User).where(User.id == target_id, User.is_active == True))
+    if not target.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing = await db.execute(
+        select(ScanShare).where(
+            ScanShare.scan_id == scan_id, ScanShare.shared_with_user_id == target_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Already shared with this user")
+
+    share = ScanShare(
+        scan_id=scan_id,
+        shared_by=current_user.id,
+        shared_with_user_id=target_id,
+    )
+    db.add(share)
+    await db.commit()
+    await db.refresh(share)
+
+    target_user = (await db.execute(select(User).where(User.id == target_id))).scalar_one()
+    return ScanShareResponse(
+        id=str(share.id),
+        shared_with_user=UserSummarySchema(id=str(target_user.id), username=target_user.username),
+        created_at=share.created_at,
+    )
+
+
+@router.post("/{scan_id}/shares/groups", response_model=ScanShareResponse, status_code=status.HTTP_201_CREATED)
+async def share_with_group(
+    scan_id: uuid.UUID,
+    body: ShareWithGroupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.get_scan_or_404(db, scan_id, current_user.id)
+
+    try:
+        group_id = uuid.UUID(body.group_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid group_id")
+
+    # User must be a member of the group to share with it
+    membership = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id, GroupMember.user_id == current_user.id
+        )
+    )
+    if not membership.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="You are not a member of this group")
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    existing = await db.execute(
+        select(ScanShare).where(
+            ScanShare.scan_id == scan_id, ScanShare.shared_with_group_id == group_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Already shared with this group")
+
+    share = ScanShare(
+        scan_id=scan_id,
+        shared_by=current_user.id,
+        shared_with_group_id=group_id,
+    )
+    db.add(share)
+    await db.commit()
+    await db.refresh(share)
+
+    return ScanShareResponse(
+        id=str(share.id),
+        shared_with_group=GroupSummarySchema(id=str(group.id), name=group.name),
+        created_at=share.created_at,
+    )
+
+
+@router.delete("/{scan_id}/shares/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_share(
+    scan_id: uuid.UUID,
+    share_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.get_scan_or_404(db, scan_id, current_user.id)
+
+    result = await db.execute(
+        select(ScanShare).where(ScanShare.id == share_id, ScanShare.scan_id == scan_id)
+    )
+    share = result.scalar_one_or_none()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share not found")
+
+    await db.delete(share)
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Groups the current user belongs to (for sharing UI)
+# ---------------------------------------------------------------------------
+
+@router.get("/groups/mine", response_model=list[GroupSummarySchema], tags=["groups"])
+async def my_groups(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Group)
+        .join(GroupMember, GroupMember.group_id == Group.id)
+        .where(GroupMember.user_id == current_user.id)
+        .order_by(Group.name)
+    )
+    groups = result.scalars().all()
+    return [GroupSummarySchema(id=str(g.id), name=g.name, description=g.description) for g in groups]
+
+
+# ---------------------------------------------------------------------------
+# User search (for direct share targeting)
+# ---------------------------------------------------------------------------
+
+@router.get("/users/search", response_model=list[UserSummarySchema], tags=["users"])
+async def search_users(
+    q: str = Query(..., min_length=1, max_length=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(User)
+        .where(
+            User.username.ilike(f"%{q}%"),
+            User.is_active == True,
+            User.id != current_user.id,
+        )
+        .order_by(User.username)
+        .limit(20)
+    )
+    users = result.scalars().all()
+    return [UserSummarySchema(id=str(u.id), username=u.username) for u in users]
+
+
+# ---------------------------------------------------------------------------
+# Suggested scan trigger (owner-only)
 # ---------------------------------------------------------------------------
 
 @router.post(
@@ -120,7 +311,6 @@ async def trigger_suggested_scan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify scan ownership
     await service.get_scan_or_404(db, scan_id, current_user.id)
 
     result = await db.execute(
@@ -162,8 +352,8 @@ async def scan_logs_ws(
     token: str = Query(...),
 ):
     from app.auth.service import ACCESS_TOKEN_TYPE, decode_token
+    from app.scans.service import _has_share_access
 
-    # Authenticate via query-param token (browser WS API doesn't support headers)
     user_id = decode_token(token, ACCESS_TOKEN_TYPE)
     if not user_id:
         await websocket.close(code=4001, reason="Unauthorized")
@@ -171,22 +361,25 @@ async def scan_logs_ws(
 
     try:
         scan_uuid = uuid.UUID(scan_id)
+        user_uuid = uuid.UUID(user_id)
     except ValueError:
-        await websocket.close(code=4004, reason="Invalid scan ID")
+        await websocket.close(code=4004, reason="Invalid ID")
         return
 
     await websocket.accept()
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(Scan).where(Scan.id == scan_uuid, Scan.user_id == uuid.UUID(user_id))
+            select(Scan).where(
+                Scan.id == scan_uuid,
+                or_(Scan.user_id == user_uuid, _has_share_access(scan_uuid, user_uuid)),
+            )
         )
         scan = result.scalar_one_or_none()
         if not scan:
             await websocket.close(code=4004, reason="Scan not found")
             return
 
-        # Replay persisted history first
         logs_result = await db.execute(
             select(ScanLog)
             .where(ScanLog.scan_id == scan_uuid)
@@ -203,14 +396,12 @@ async def scan_logs_ws(
                 })
             )
 
-        # If scan already finished, send terminal event and close
         if scan.status in ("completed", "failed", "cancelled"):
             await websocket.send_text(
                 json.dumps({"type": "complete", "status": scan.status})
             )
             return
 
-    # Tail the live pub/sub queue
     q = log_bus.subscribe(scan_id)
     try:
         while True:

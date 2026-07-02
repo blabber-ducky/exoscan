@@ -5,11 +5,18 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ScanPage } from '@/pages/ScanPage'
 import { ResultsPage } from '@/pages/ResultsPage'
+import { AdminPage } from '@/pages/AdminPage'
 import { useAuthStore } from '@/store/authStore'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken)
   if (!accessToken) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user)
+  if (!user?.is_admin) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -34,6 +41,14 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'scans/:id', element: <ScanPage /> },
       { path: 'scans/:id/results', element: <ResultsPage /> },
+      {
+        path: 'admin',
+        element: (
+          <RequireAdmin>
+            <AdminPage />
+          </RequireAdmin>
+        ),
+      },
     ],
   },
   {

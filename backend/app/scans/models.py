@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric, SmallInteger, String, Text, func
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy import TIMESTAMP
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -132,6 +132,40 @@ class ScanLog(Base):
     )
     stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class ScanShare(Base):
+    __tablename__ = "scan_shares"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    shared_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    shared_with_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    shared_with_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(shared_with_user_id IS NULL) != (shared_with_group_id IS NULL)",
+            name="ck_scan_shares_exactly_one_target",
+        ),
+        UniqueConstraint("scan_id", "shared_with_user_id", name="uq_scan_share_user"),
+        UniqueConstraint("scan_id", "shared_with_group_id", name="uq_scan_share_group"),
+    )
 
 
 class SuggestedScan(Base):

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     nuclei_templates_volume: str = "exoscan_nuclei_templates_vol"
     screenshots_volume: str = "exoscan_screenshots_vol"
     docker_network: str = "exoscan_net"
+    # Email of the user who should be promoted to admin on first login/register.
+    # Leave empty to manage admin status via direct DB update.
+    admin_email: str = ""
 
 
 settings = Settings()

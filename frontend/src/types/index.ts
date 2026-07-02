@@ -2,6 +2,7 @@ export interface User {
   id: string
   email: string
   username: string
+  is_admin: boolean
 }
 
 export interface TokenPair {
@@ -13,6 +14,48 @@ export interface TokenPair {
 export interface PortConfig {
   preset: 'top100' | 'top1000' | 'http_only' | 'custom'
   ports?: string
+}
+
+export interface UserSummary {
+  id: string
+  username: string
+}
+
+export interface GroupSummary {
+  id: string
+  name: string
+  description?: string | null
+}
+
+export interface GroupMember {
+  user_id: string
+  username: string
+  added_at: string
+}
+
+export interface Group {
+  id: string
+  name: string
+  description?: string | null
+  created_at: string
+  members: GroupMember[]
+}
+
+export interface AdminUser {
+  id: string
+  username: string
+  email: string
+  is_admin: boolean
+  is_active: boolean
+  created_at: string
+  groups: GroupSummary[]
+}
+
+export interface ScanShare {
+  id: string
+  shared_with_user: UserSummary | null
+  shared_with_group: GroupSummary | null
+  created_at: string
 }
 
 export interface Scan {
@@ -29,6 +72,8 @@ export interface Scan {
   created_at: string
   asset_count: number
   cve_count: number
+  is_owner: boolean
+  owner_username: string | null
 }
 
 export interface Technology {

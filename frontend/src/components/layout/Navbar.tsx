@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ScanSearch, LogOut, User } from 'lucide-react'
+import { ScanSearch, LogOut, User, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 
@@ -21,6 +21,14 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-3">
+          {user?.is_admin && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin">
+                <Shield className="h-4 w-4" />
+                Admin
+              </Link>
+            </Button>
+          )}
           {user && (
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
               <User className="h-3.5 w-3.5" />

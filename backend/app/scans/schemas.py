@@ -209,6 +209,8 @@ class ScanResponse(BaseModel):
     created_at: datetime
     asset_count: int = 0
     cve_count: int = 0
+    is_owner: bool = True
+    owner_username: str | None = None
 
 
 class ScanResultsResponse(BaseModel):
@@ -228,3 +230,61 @@ class TriggerSuggestedResponse(BaseModel):
     suggested_scan_id: str
     status: str
     message: str
+
+
+# --- Sharing schemas ---
+
+class UserSummarySchema(BaseModel):
+    id: str
+    username: str
+
+
+class GroupSummarySchema(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+
+
+class ScanShareResponse(BaseModel):
+    id: str
+    shared_with_user: UserSummarySchema | None = None
+    shared_with_group: GroupSummarySchema | None = None
+    created_at: datetime
+
+
+class ShareWithUserRequest(BaseModel):
+    user_id: str
+
+
+class ShareWithGroupRequest(BaseModel):
+    group_id: str
+
+
+# --- Admin schemas ---
+
+class GroupMemberResponse(BaseModel):
+    user_id: str
+    username: str
+    added_at: datetime
+
+
+class GroupResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    created_at: datetime
+    members: list[GroupMemberResponse] = []
+
+
+class AddMemberRequest(BaseModel):
+    user_id: str
+
+
+class AdminUserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+    is_admin: bool
+    is_active: bool
+    created_at: datetime
+    groups: list[GroupSummarySchema] = []

@@ -199,6 +199,65 @@ docker compose up --build
 
 ---
 
+## Phase 14: Sharing & Groups [x]
+
+**Data model (migration 003):**
+- [x] `is_admin BOOL` added to `users`
+- [x] `groups` table — id, name (unique), description, created_by, created_at
+- [x] `group_members` table — (group_id, user_id) composite PK, added_at; CASCADE on both FKs
+- [x] `scan_shares` table — id, scan_id (CASCADE), shared_by, shared_with_user_id (nullable), shared_with_group_id (nullable); CHECK: exactly one target non-null; UNIQUE per (scan, user) and (scan, group); indexes on scan_id + both target columns
+
+**Backend models:**
+- [x] `auth/models.py` — `User.is_admin` + new `Group` + `GroupMember` ORM classes
+- [x] `scans/models.py` — `ScanShare` ORM class with table constraints
+
+**Access control:**
+- [x] `dependencies.py` — `require_admin` dependency (403 if not is_admin)
+- [x] `scans/service.py` — `_has_share_access()` SQLAlchemy or_ clause (direct user share OR group membership share); `get_accessible_scan_or_404()` (owner or shared viewer, returns (scan, is_owner, owner_username)); `list_scans()` returns (Scan, owner_username) rows with shared scans included; `list_shares()` helper; `scan_to_response()` accepts is_owner + owner_username
+- [x] `scans/router.py` — read routes (GET scan, GET results, WS) use get_accessible_scan_or_404; mutation routes (DELETE, trigger, share management) remain owner-only via get_scan_or_404
+- [x] WS handler updated to check owner OR share access before accepting connection
+
+**Sharing routes** (`POST /api/v1/scans/{id}/shares/users`, `/groups`; `DELETE /api/v1/scans/{id}/shares/{share_id}`; `GET /api/v1/scans/{id}/shares`):
+- [x] Share-with-user: validates target exists, not self, not already shared
+- [x] Share-with-group: enforces user is a member of the group before allowing share (users can only share with groups they belong to)
+- [x] Revoke: owner-only delete of a specific ScanShare row
+
+**Utility routes:**
+- [x] `GET /api/v1/scans/groups/mine` — groups the current user belongs to (for ShareDialog)
+- [x] `GET /api/v1/scans/users/search?q=` — username search for direct sharing (ilike, excludes self, max 20 results)
+
+**Admin routes** (`/api/v1/admin/*`, all gated by require_admin):
+- [x] `GET /admin/users[?search=]` — all users with email, is_admin, is_active, group memberships
+- [x] `GET /admin/groups` — all groups with members list
+- [x] `POST /admin/groups` — create group (409 on duplicate name)
+- [x] `DELETE /admin/groups/{id}` — delete group (CASCADE removes memberships + scan_shares targeting it)
+- [x] `POST /admin/groups/{id}/members` — add user to group (409 if already member)
+- [x] `DELETE /admin/groups/{id}/members/{user_id}` — remove user from group
+
+**Admin auto-promotion:**
+- [x] `config.py` — `admin_email: str = ""` setting; `.env.example` documents ADMIN_EMAIL
+- [x] `auth/router.py` register: sets is_admin=True if email matches ADMIN_EMAIL at creation time
+- [x] `auth/router.py` login: promotes existing user to admin if email matches ADMIN_EMAIL (handles post-registration config changes)
+
+**ScanResponse additions:**
+- [x] `is_owner: bool` — True if current user owns the scan
+- [x] `owner_username: str | None` — username of scan owner (only populated for shared scans in list/get)
+
+**Frontend:**
+- [x] `types/index.ts` — User.is_admin; Scan.is_owner + owner_username; UserSummary, GroupSummary, GroupMember, Group, AdminUser, ScanShare interfaces
+- [x] `api/admin.ts` — listUsers, listGroups, createGroup, deleteGroup, addMember, removeMember
+- [x] `api/shares.ts` — listShares, shareWithUser, shareWithGroup, revokeShare, myGroups, searchUsers
+- [x] `hooks/useAdmin.ts` — useAdminUsers, useAdminGroups, useCreateGroup, useDeleteGroup, useAddMember, useRemoveMember (all invalidate admin query keys on success)
+- [x] `hooks/useShares.ts` — useScanShares, useMyGroups, useUserSearch, useShareWithUser, useShareWithGroup, useRevokeShare
+- [x] `components/scans/ShareDialog.tsx` — Dialog with Groups tab (user's groups, Share/Shared toggle) and Users tab (username search, Share/Shared toggle); current shares listed at top with revoke; owner-only
+- [x] `components/scans/ScanCard.tsx` — Share button (owner + completed only); owner_username shown for shared scans; delete button hidden for non-owners
+- [x] `components/admin/GroupManager.tsx` — expandable group rows with member list + remove; user search to add members; create group form
+- [x] `pages/AdminPage.tsx` — Groups tab (GroupManager) + Users tab (user list with group badges)
+- [x] `components/layout/Navbar.tsx` — Admin link with Shield icon shown when user.is_admin
+- [x] `router.tsx` — `/admin` route inside Layout, guarded by RequireAdmin (redirects non-admin to /dashboard)
+
+---
+
 ## Completed Phases
 
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore
@@ -214,3 +273,4 @@ docker compose up --build
 - **Phase 11: Security Hardening** — slowapi Limiter (5/min per IP on register/login/refresh); port range sanity check (_valid_port_ranges: 1–65535 bounds, range start≤end); audit confirmed shlex.quote on all user-derived shell args, CORS locked to FRONTEND_URL, no shell=True anywhere
 - **Phase 12: Documentation** — docs/architecture.md (system diagram + sequence diagram + package layout + design decisions), docs/developer.md (setup + migrations + module extension guides + isolation testing), docs/user.md (scan types + modules + results interpretation + limitations + responsible use)
 - **Phase 13: CI/CD** — `.github/workflows/build.yml`: path-filtered multi-arch builds (amd64 + arm64) for `exoscan-be` and `exoscan-fe` on push to main; Docker Hub push with `latest` + SHA tags via `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets; GHA layer cache per image; docker-compose.yml updated with `image:` fields (`${DOCKERHUB_USERNAME}/exoscan-be/fe:${TAG:-latest}`); `build:` retained for local dev; `.env.example` documents `DOCKERHUB_USERNAME` + `TAG`
+- **Phase 14: Sharing & Groups** — migration 003 (is_admin + groups + group_members + scan_shares); Group/GroupMember models; ScanShare model with exactly-one-target constraint; require_admin dependency; scan access widened to owner-or-shared-viewer on all read paths (WS included); share-with-group enforces membership (users can only share with groups they belong to); admin router (group CRUD + user membership management); ADMIN_EMAIL auto-promotion on register/login; ShareDialog (groups tab + user search tab + revoke); ScanCard share button + owner attribution; AdminPage (groups + users panels); Navbar admin link; /admin route with RequireAdmin guard

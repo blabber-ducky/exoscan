@@ -11,6 +11,7 @@ from app.auth.schemas import (
     TokenResponse,
     UserResponse,
 )
+from app.config import settings
 from app.dependencies import get_current_user, get_db
 from app.limiter import limiter
 
@@ -31,10 +32,14 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
             detail="Email or username already registered",
         )
 
+    is_admin = bool(
+        settings.admin_email and body.email.lower() == settings.admin_email.lower()
+    )
     user = User(
         email=body.email,
         username=body.username,
         password_hash=service.hash_password(body.password),
+        is_admin=is_admin,
     )
     db.add(user)
     await db.commit()
@@ -58,6 +63,11 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
 
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
+
+    # Promote to admin if email matches ADMIN_EMAIL (handles post-registration config)
+    if settings.admin_email and user.email.lower() == settings.admin_email.lower() and not user.is_admin:
+        user.is_admin = True
+        await db.commit()
 
     uid = str(user.id)
     return TokenResponse(

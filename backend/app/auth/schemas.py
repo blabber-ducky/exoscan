@@ -46,7 +46,13 @@ class UserResponse(BaseModel):
     id: str
     email: str
     username: str
+    is_admin: bool = False
 
     @classmethod
     def from_orm_user(cls, user) -> "UserResponse":
-        return cls(id=str(user.id), email=user.email, username=user.username)
+        return cls(id=str(user.id), email=user.email, username=user.username, is_admin=user.is_admin)
+
+
+class UserSummary(BaseModel):
+    id: str
+    username: str
