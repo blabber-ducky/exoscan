@@ -114,11 +114,15 @@ export function NewScanForm({ onClose }: { onClose?: () => void }) {
 
   const handleSubmit = () => {
     if (!validatePorts()) return
+    const allowedKeys = new Set([
+      ...(scanType !== 'active' ? PASSIVE_MODULES.map((m) => m.key) : []),
+      ...(scanType !== 'passive' ? ACTIVE_MODULES.map((m) => m.key) : []),
+    ])
     createScan.mutate(
       {
         target: target.trim(),
         scan_type: scanType,
-        modules: [...modules],
+        modules: [...modules].filter((m) => allowedKeys.has(m)),
         port_config: portPreset === 'custom'
           ? { preset: 'custom', ports: customPorts.trim() }
           : { preset: portPreset },
