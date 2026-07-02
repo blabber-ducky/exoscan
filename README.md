@@ -67,7 +67,7 @@ All variables are in `.env.example`. The ones you need to set:
 | `POSTGRES_PASSWORD` | **Yes** | Database password |
 | `FRONTEND_URL` | **Yes** | CORS allowed origin — `http://localhost:3000` for local dev |
 | `ADMIN_EMAIL` | No | Email address to auto-promote to admin on register/login |
-| `DOCKERHUB_USERNAME` | For deployment | Your Docker Hub username — used to pull pre-built images |
+| `DOCKERHUB_USERNAME` | For deployment | Docker Hub username (`m1v1n`) — used to pull pre-built images |
 | `TAG` | No | Image tag to deploy, default `latest` |
 | `NVD_API_KEY` | No | Raises NVD CVE rate limit from 5 to 50 req/30 s — register at nvd.nist.gov |
 
@@ -81,16 +81,16 @@ Pre-built multi-arch images (`linux/amd64` + `linux/arm64`) are published to Doc
 
 | Image | Docker Hub path |
 |-------|----------------|
-| Backend | `<username>/exoscan-be` |
-| Frontend | `<username>/exoscan-fe` |
+| Backend | `m1v1n/exoscan-be` |
+| Frontend | `m1v1n/exoscan-fe` |
 
 To deploy on a server or Raspberry Pi without building from source:
 
 ```bash
 cp .env.example .env
-# Set SECRET_KEY, POSTGRES_PASSWORD, FRONTEND_URL, DOCKERHUB_USERNAME in .env
+# Set SECRET_KEY, POSTGRES_PASSWORD, FRONTEND_URL in .env
 
-docker compose pull        # pulls exoscan-be and exoscan-fe from Docker Hub
+docker compose pull        # pulls m1v1n/exoscan-be and m1v1n/exoscan-fe from Docker Hub
 docker compose up -d
 ```
 
@@ -98,7 +98,7 @@ docker compose up -d
 
 | Secret | Value |
 |--------|-------|
-| `DOCKERHUB_USERNAME` | Your Docker Hub username |
+| `DOCKERHUB_USERNAME` | `m1v1n` |
 | `DOCKERHUB_TOKEN` | A Docker Hub access token (Hub → Account Settings → Personal Access Tokens) |
 
 ---

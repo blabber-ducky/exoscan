@@ -19,7 +19,7 @@ services:
 
   backend:
     build: ./backend
-    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/exoscan-be:${TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-m1v1n}/exoscan-be:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -47,7 +47,7 @@ services:
 
   frontend:
     build: ./frontend
-    image: ${DOCKERHUB_USERNAME:-your-dockerhub-username}/exoscan-fe:${TAG:-latest}
+    image: ${DOCKERHUB_USERNAME:-m1v1n}/exoscan-fe:${TAG:-latest}
     restart: unless-stopped
     depends_on:
       - backend
