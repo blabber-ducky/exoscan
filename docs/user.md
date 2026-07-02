@@ -140,6 +140,64 @@ To run a suggested scan, click the **Run** button on the suggestion card. The sc
 
 ---
 
+## Sharing Scan Results
+
+Completed scans can be shared with other registered users, either individually or through groups.
+
+### Sharing a Scan
+
+Click the **Share** icon on any completed scan card in your dashboard. The share dialog has two tabs:
+
+**Groups tab** — lists every group you are a member of. Click **Share** to grant all current (and future) members of that group read access to your scan. The button changes to **Shared** once active. You can only share with groups you belong to; groups you are not a member of do not appear here.
+
+**Users tab** — search for any registered username. Click **Share** next to a result to grant that specific user access.
+
+### Viewing Shared Scans
+
+Scans shared with you appear in your dashboard alongside your own scans. Shared scans show the owner's username next to the scan status. You can:
+
+- View the scan page and results in full
+- Watch the live log stream (or replay history)
+
+You cannot delete, re-share, or trigger suggested scans on a scan you do not own.
+
+### Revoking Access
+
+Open the share dialog for any of your scans. The current share list at the top of the dialog shows each active share with a revoke button. Removing a user or group share immediately removes their access.
+
+Deleting a group (admin action) also removes any scan shares that targeted it.
+
+---
+
+## Admin Panel
+
+Administrators have access to a dedicated panel at `/admin` (the **Admin** link in the navigation bar, visible only to admins).
+
+### Becoming an Admin
+
+Admin access is controlled by the `ADMIN_EMAIL` environment variable set by whoever operates the Exoscan instance. The account registered with that email address is automatically promoted to admin on their first login. Contact your instance operator if you need admin access.
+
+### Groups
+
+The **Groups** tab lets you create and manage groups, which are the primary way to share scans with multiple users at once.
+
+**Creating a group:**
+1. Enter a group name (must be unique across the instance) and an optional description.
+2. Click **Create**.
+
+**Managing members:**
+- Click any group row to expand it.
+- The member list shows current members with a remove button next to each name.
+- Use the search box to find users to add. Only users not already in the group appear in the results. Click **Add** to add them.
+
+**Deleting a group** removes all memberships and all scan shares that targeted it. Users who had access only through that group immediately lose access to the shared scans.
+
+### Users
+
+The **Users** tab shows all registered accounts with their email address, admin/disabled status, and current group memberships.
+
+---
+
 ## Limitations
 
 - **Rate limiting:** DuckDuckGo dorking is throttled to 1 request per 3 seconds to avoid being blocked.

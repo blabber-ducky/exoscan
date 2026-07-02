@@ -31,10 +31,17 @@ See `.env.example` for the full list. Key variables:
 | `SECRET_KEY` | Yes | JWT signing secret — 32+ random bytes |
 | `DATABASE_URL` | Auto | Set by docker-compose; override for local DB |
 | `FRONTEND_URL` | Yes | CORS allowed origin (e.g. `http://localhost:3000`) |
+| `ADMIN_EMAIL` | No | Email of the account to auto-promote to admin; empty string disables auto-promotion |
 | `NVD_API_KEY` | No | Raises NVD rate limit from 5 to 50 req/30 s |
 | `SCREENSHOT_BASE_PATH` | Auto | Internal backend path (`/app/static/screenshots`) |
 | `NUCLEI_TEMPLATES_VOLUME` | Auto | Docker volume name for nuclei templates |
 | `SCREENSHOTS_VOLUME` | Auto | Docker volume name for screenshots |
+
+## Bootstrapping the Admin Account
+
+Set `ADMIN_EMAIL` in `.env` before starting the stack. The first time that email address registers (or logs in, if already registered), the account is automatically promoted to `is_admin=True`. You can set the variable at any time — the promotion is applied on the next login even if the account already exists.
+
+There is no other way to create an admin. The `is_admin` flag cannot be set through the API from a non-admin account.
 
 ## Running Database Migrations
 
@@ -221,6 +228,34 @@ npm run dev    # starts Vite dev server at :5173, proxies /api to :8000
 ```
 
 The `vite.config.ts` proxy forwards `/api` and `/static` to `http://localhost:8000`, so you can run the backend via Docker Compose while working on the frontend locally.
+
+## Adding a New Admin Route
+
+All admin routes live in `backend/app/admin/router.py` and are registered at `/api/v1/admin/*`. Every handler must declare `current_user: User = Depends(require_admin)` — the dependency raises 403 for non-admin callers.
+
+```python
+from app.dependencies import require_admin
+
+@router.get("/admin/my-new-endpoint")
+async def my_admin_endpoint(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    ...
+```
+
+## Scan Access Control Patterns
+
+There are two service helpers for fetching a scan by ID:
+
+| Helper | Use for |
+|--------|---------|
+| `get_scan_or_404(db, scan_id, user_id)` | Mutations — returns 404 if not owner |
+| `get_accessible_scan_or_404(db, scan_id, user_id)` | Reads — owner OR shared viewer |
+
+Any new read-only endpoint (results, exports, etc.) should use `get_accessible_scan_or_404`. Any new mutation endpoint (cancel, re-run, delete) should use `get_scan_or_404`.
+
+The WS handler checks the same `_has_share_access()` clause before accepting a connection. If you add a new streaming endpoint, apply the same check.
 
 ## Code Style Notes
 

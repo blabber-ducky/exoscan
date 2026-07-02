@@ -14,6 +14,7 @@ Containerised external reconnaissance web application for security professionals
 - **Secondary scan suggestions** — after active recon, targeted follow-up scans are suggested per asset (nuclei CVE, WPScan, nikto, ffuf, nmap vuln scripts), boosted in priority when high-severity CVEs are found
 - **Live log streaming** — real-time WebSocket log feed with stage progress stepper; history replayed on reconnect
 - **Screenshot gallery** — headless browser screenshots embedded in each asset card
+- **Scan sharing** — share completed scan results with individual users or with groups; admin panel for group management and user-to-group assignment
 - **JWT auth** — register/login/refresh token flow; all scan data is per-user
 - **Fully containerised** — three Docker Compose services; scanning tools spin up in ephemeral `kalilinux/kali-rolling` containers and are destroyed after each stage
 
@@ -65,6 +66,7 @@ All variables are in `.env.example`. The ones you need to set:
 | `SECRET_KEY` | **Yes** | JWT signing secret — generate with `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | **Yes** | Database password |
 | `FRONTEND_URL` | **Yes** | CORS allowed origin — `http://localhost:3000` for local dev |
+| `ADMIN_EMAIL` | No | Email address to auto-promote to admin on register/login |
 | `DOCKERHUB_USERNAME` | For deployment | Your Docker Hub username — used to pull pre-built images |
 | `TAG` | No | Image tag to deploy, default `latest` |
 | `NVD_API_KEY` | No | Raises NVD CVE rate limit from 5 to 50 req/30 s — register at nvd.nist.gov |
@@ -201,8 +203,9 @@ exoscan/
 │   ├── alembic/              # migrations
 │   └── app/
 │       ├── main.py           # FastAPI app + middleware
-│       ├── auth/             # JWT register/login/refresh
-│       ├── scans/            # scan CRUD + WebSocket logs
+│       ├── auth/             # JWT register/login/refresh; ADMIN_EMAIL auto-promotion
+│       ├── admin/            # group CRUD + user membership management (admin-only)
+│       ├── scans/            # scan CRUD + WebSocket logs + sharing endpoints
 │       ├── recon/
 │       │   ├── orchestrator.py
 │       │   ├── probe.py
@@ -215,11 +218,11 @@ exoscan/
 │   ├── Dockerfile
 │   ├── nginx.conf
 │   └── src/
-│       ├── api/              # Axios client, WS factory
+│       ├── api/              # Axios client, WS factory, admin + shares API
 │       ├── store/            # Zustand auth + scan stores
-│       ├── hooks/            # TanStack Query hooks
-│       ├── components/       # UI primitives + domain components
-│       └── pages/            # Login, Register, Dashboard, Scan, Results
+│       ├── hooks/            # TanStack Query hooks (scans, admin, shares)
+│       ├── components/       # UI primitives + domain components (ShareDialog, GroupManager)
+│       └── pages/            # Login, Register, Dashboard, Scan, Results, Admin
 ├── postgres/
 │   └── init/01_extensions.sql
 └── docs/
@@ -255,6 +258,8 @@ docker compose exec backend alembic upgrade head
 - Domain/URL/IP inputs are validated with pydantic validators before any container is spawned
 - CORS is locked to `FRONTEND_URL` only
 - Auth endpoints are rate-limited to 5 requests/minute per IP via slowapi
+- Admin routes are gated by a `require_admin` FastAPI dependency; `is_admin` cannot be set through the public API
+- Users can only share scans with groups they are a member of — enforced server-side
 - The Docker socket mount gives the backend root-equivalent host access — do not expose port 8000 publicly
 
 ---
