@@ -175,15 +175,15 @@ class AssetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    url: str
+    url: str | None
     ip_address: str | None
     hostname: str | None
     status_code: int | None
     title: str | None
     screenshot_path: str | None
     technologies: list[Any]
-    headers: dict
-    dns_records: dict
+    headers: dict | None
+    dns_records: list[Any] | dict | None
     waf_detected: str | None
     scan_status: str
     scan_notes: str | None
