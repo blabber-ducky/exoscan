@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useAuthStore } from '@/store/authStore'
 
 export const api = axios.create({
   baseURL: '/api/v1',
@@ -7,13 +8,8 @@ export const api = axios.create({
 
 // Attach access token to every request
 api.interceptors.request.use((config) => {
-  const stored = localStorage.getItem('auth')
-  if (stored) {
-    try {
-      const { accessToken } = JSON.parse(stored)
-      if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
-    } catch {}
-  }
+  const { accessToken } = useAuthStore.getState()
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
   return config
 })
 
@@ -29,14 +25,9 @@ api.interceptors.response.use(
     }
     original._retried = true
 
-    const stored = localStorage.getItem('auth')
-    if (!stored) {
-      window.location.href = '/login'
-      return Promise.reject(error)
-    }
-
-    const { refreshToken } = JSON.parse(stored)
+    const { refreshToken, setTokens, logout } = useAuthStore.getState()
     if (!refreshToken) {
+      logout()
       window.location.href = '/login'
       return Promise.reject(error)
     }
@@ -46,15 +37,11 @@ api.interceptors.response.use(
         .post('/api/v1/auth/refresh', { refresh_token: refreshToken })
         .then((r) => {
           const { access_token, refresh_token } = r.data
-          const parsed = JSON.parse(localStorage.getItem('auth') || '{}')
-          localStorage.setItem(
-            'auth',
-            JSON.stringify({ ...parsed, accessToken: access_token, refreshToken: refresh_token }),
-          )
+          setTokens(access_token, refresh_token)
           return access_token as string
         })
         .catch(() => {
-          localStorage.removeItem('auth')
+          logout()
           window.location.href = '/login'
           return null
         })
