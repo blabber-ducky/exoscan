@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { CreateScanPayload, PagedScans, Scan, ScanResults } from '@/types'
+import type { CreateScanPayload, FollowupActivePayload, FollowupActiveResult, PagedScans, Scan, ScanResults } from '@/types'
 
 export const scansApi = {
   create: (payload: CreateScanPayload) =>
@@ -20,5 +20,10 @@ export const scansApi = {
   triggerSuggested: (scanId: string, suggestedId: string) =>
     api
       .post(`/scans/${scanId}/suggested/${suggestedId}/trigger`)
+      .then((r) => r.data),
+
+  followupActive: (scanId: string, payload: FollowupActivePayload) =>
+    api
+      .post<FollowupActiveResult>(`/scans/${scanId}/followup-active`, payload)
       .then((r) => r.data),
 }

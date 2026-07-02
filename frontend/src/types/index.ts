@@ -167,6 +167,21 @@ export interface CreateScanPayload {
   port_config: PortConfig
 }
 
+export interface FollowupActivePayload {
+  modules: string[]
+  port_config: PortConfig
+}
+
+export interface FollowupActiveScanItem {
+  id: string
+  target: string
+}
+
+export interface FollowupActiveResult {
+  created_scans: FollowupActiveScanItem[]
+  skipped: number
+}
+
 export interface WsLogLine {
   type: 'log' | 'complete' | 'error' | 'ping'
   level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'

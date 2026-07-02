@@ -13,10 +13,13 @@ from app.database import AsyncSessionLocal
 from app.dependencies import get_current_user, get_db
 from app.recon import log_bus
 from app.recon.orchestrator import run_scan
-from app.scans.models import Scan, ScanLog, ScanShare, SuggestedScan
+from app.scans.models import Scan, ScanAsset, ScanLog, ScanShare, SuggestedScan
 from app.scans.schemas import (
     AddMemberRequest,
     CreateScanRequest,
+    FollowupActiveRequest,
+    FollowupActiveResponse,
+    FollowupActiveScanItem,
     GroupSummarySchema,
     PagedScansResponse,
     ScanResponse,
@@ -121,6 +124,73 @@ async def get_scan_results(
     db: AsyncSession = Depends(get_db),
 ):
     return await service.get_scan_results(db, scan_id, current_user.id)
+
+
+@router.post(
+    "/{scan_id}/followup-active",
+    response_model=FollowupActiveResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def followup_active_scan(
+    scan_id: uuid.UUID,
+    body: FollowupActiveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    source = await service.get_scan_or_404(db, scan_id, current_user.id)
+
+    if source.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Source scan must be completed before initiating a follow-up",
+        )
+    if source.scan_type not in ("passive", "comprehensive"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Follow-up active scan can only be initiated from a passive or comprehensive scan",
+        )
+
+    assets_result = await db.execute(
+        select(ScanAsset).where(ScanAsset.scan_id == scan_id)
+    )
+    assets = list(assets_result.scalars().all())
+
+    created: list[Scan] = []
+    skipped = 0
+    for asset in assets:
+        if asset.url:
+            target = asset.url
+        elif asset.hostname:
+            target = f"https://{asset.hostname}"
+        elif asset.ip_address:
+            target = str(asset.ip_address)
+        else:
+            skipped += 1
+            continue
+
+        new_scan = Scan(
+            user_id=current_user.id,
+            target=target,
+            scan_type="active",
+            modules=body.modules,
+            port_config=body.port_config.model_dump(),
+            status="pending",
+        )
+        db.add(new_scan)
+        await db.flush()
+        created.append(new_scan)
+
+    await db.commit()
+
+    for new_scan in created:
+        asyncio.create_task(run_scan(str(new_scan.id)))
+
+    return FollowupActiveResponse(
+        created_scans=[
+            FollowupActiveScanItem(id=str(s.id), target=s.target) for s in created
+        ],
+        skipped=skipped,
+    )
 
 
 # ---------------------------------------------------------------------------

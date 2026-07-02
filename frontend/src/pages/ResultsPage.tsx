@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Shield, AlertTriangle, Globe } from 'lucide-react'
+import { ArrowLeft, Shield, AlertTriangle, Globe, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -7,11 +8,13 @@ import { Separator } from '@/components/ui/separator'
 import { ScanStatusBadge } from '@/components/scans/ScanStatusBadge'
 import { PassiveReconPanel } from '@/components/results/PassiveReconPanel'
 import { AssetGrid } from '@/components/results/AssetGrid'
+import { ActiveFollowupDialog } from '@/components/scans/ActiveFollowupDialog'
 import { useScanResults } from '@/hooks/useScanResults'
 
 export function ResultsPage() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading, error } = useScanResults(id)
+  const [followupOpen, setFollowupOpen] = useState(false)
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading results…</p>
@@ -35,6 +38,12 @@ export function ResultsPage() {
   const totalCves = assets.reduce((sum, a) => sum + a.cves.length, 0)
   const liveCount = assets.filter((a) => a.scan_status === 'live').length
 
+  const canFollowup =
+    scan.is_owner &&
+    scan.status === 'completed' &&
+    (scan.scan_type === 'passive' || scan.scan_type === 'comprehensive') &&
+    assets.length > 0
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -42,14 +51,29 @@ export function ResultsPage() {
         <Button variant="ghost" size="icon" asChild>
           <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
-        <div>
-          <div className="font-mono text-lg font-semibold">{scan.target}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-mono text-lg font-semibold truncate">{scan.target}</div>
           <div className="flex items-center gap-2 mt-1">
             <ScanStatusBadge status={scan.status} />
             <span className="text-xs text-muted-foreground capitalize">{scan.scan_type}</span>
           </div>
         </div>
+        {canFollowup && (
+          <Button size="sm" onClick={() => setFollowupOpen(true)} className="shrink-0 gap-1.5">
+            <Zap className="h-3.5 w-3.5" />
+            Active Scan Assets
+          </Button>
+        )}
       </div>
+
+      {canFollowup && (
+        <ActiveFollowupDialog
+          scanId={scan.id}
+          assetCount={assets.length}
+          open={followupOpen}
+          onClose={() => setFollowupOpen(false)}
+        />
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">

@@ -232,6 +232,34 @@ class TriggerSuggestedResponse(BaseModel):
     message: str
 
 
+class FollowupActiveRequest(BaseModel):
+    modules: list[str]
+    port_config: PortConfig = PortConfig()
+
+    @model_validator(mode="after")
+    def _validate(self) -> "FollowupActiveRequest":
+        if not self.modules:
+            raise ValueError("At least one active module required")
+        invalid = set(self.modules) - ACTIVE_MODULES
+        if invalid:
+            raise ValueError(
+                f"Only active modules are valid for follow-up scans: {', '.join(sorted(invalid))}"
+            )
+        if "cve_detection" in self.modules and "tech_fingerprinting" not in self.modules:
+            raise ValueError("cve_detection requires tech_fingerprinting")
+        return self
+
+
+class FollowupActiveScanItem(BaseModel):
+    id: str
+    target: str
+
+
+class FollowupActiveResponse(BaseModel):
+    created_scans: list[FollowupActiveScanItem]
+    skipped: int
+
+
 # --- Sharing schemas ---
 
 class UserSummarySchema(BaseModel):

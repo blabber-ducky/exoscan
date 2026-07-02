@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { scansApi } from '@/api/scans'
-import type { CreateScanPayload } from '@/types'
+import type { CreateScanPayload, FollowupActivePayload } from '@/types'
 
 export function useScanList(page = 1) {
   return useQuery({
@@ -48,5 +48,13 @@ export function useTriggerSuggested(scanId: string) {
   return useMutation({
     mutationFn: (suggestedId: string) => scansApi.triggerSuggested(scanId, suggestedId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['results', scanId] }),
+  })
+}
+
+export function useFollowupActive(scanId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: FollowupActivePayload) => scansApi.followupActive(scanId, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
   })
 }
