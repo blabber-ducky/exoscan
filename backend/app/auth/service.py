@@ -1,25 +1,30 @@
+import base64
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 
 
+def _prepare(password: str) -> bytes:
+    # SHA-256 then base64 before bcrypt so passwords > 72 bytes are handled safely
+    return base64.b64encode(hashlib.sha256(password.encode()).digest())
+
+
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return bcrypt.hashpw(_prepare(password), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(_prepare(plain), hashed.encode())
 
 
 def _create_token(sub: str, token_type: str, expires_delta: timedelta) -> str:
