@@ -1,10 +1,23 @@
 import re
+from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+from email_validator import EmailNotValidError, validate_email
+from pydantic import AfterValidator, BaseModel, field_validator, ConfigDict
+
+
+def _validate_email(v: str) -> str:
+    try:
+        return validate_email(v, check_deliverability=False).normalized
+    except EmailNotValidError as e:
+        raise ValueError(str(e))
+
+
+# Accepts any syntactically valid email including .local / .internal / .lan domains
+EmailField = Annotated[str, AfterValidator(_validate_email)]
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: EmailField
     username: str
     password: str
 
@@ -26,7 +39,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: EmailField
     password: str
 
 
