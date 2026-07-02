@@ -33,7 +33,7 @@ Containerised external reconnaissance web application for security professionals
 
 ---
 
-## Quick Start
+## Quick Start (development — build from source)
 
 **Prerequisites:** Docker Desktop (or Docker Engine + Compose plugin) v24+
 
@@ -57,6 +57,41 @@ Register an account on first visit. The first scan may be slow while Docker pull
 
 ---
 
+## Deployment (pre-built images)
+
+Pre-built multi-arch images (`linux/amd64` + `linux/arm64`) are published to Docker Hub on every push to `main`:
+
+| Image | Docker Hub path |
+|-------|----------------|
+| Backend | `m1v1n/exoscan-be` |
+| Frontend | `m1v1n/exoscan-fe` |
+
+No git clone or build step required — just two files:
+
+```bash
+wget https://raw.githubusercontent.com/<repo>/main/docker-compose.yml
+wget https://raw.githubusercontent.com/<repo>/main/.env.example -O .env
+
+# Edit .env — at minimum set these three:
+#   SECRET_KEY  →  openssl rand -hex 32
+#   POSTGRES_PASSWORD  →  a strong password
+#   FRONTEND_URL  →  http://<your-server-ip>:3000
+
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on backend startup. The stack is ready when `docker compose ps` shows all three services as `running`.
+
+**GitHub Actions secrets required** (set under repo → Settings → Secrets → Actions):
+
+| Secret | Value |
+|--------|-------|
+| `DOCKERHUB_USERNAME` | `m1v1n` |
+| `DOCKERHUB_TOKEN` | A Docker Hub access token (Hub → Account Settings → Personal Access Tokens) |
+
+---
+
 ## Environment Variables
 
 All variables are in `.env.example`. The ones you need to set:
@@ -67,39 +102,9 @@ All variables are in `.env.example`. The ones you need to set:
 | `POSTGRES_PASSWORD` | **Yes** | Database password |
 | `FRONTEND_URL` | **Yes** | CORS allowed origin — `http://localhost:3000` for local dev |
 | `ADMIN_EMAIL` | No | Email address to auto-promote to admin on register/login |
-| `DOCKERHUB_USERNAME` | For deployment | Docker Hub username (`m1v1n`) — used to pull pre-built images |
-| `TAG` | No | Image tag to deploy, default `latest` |
 | `NVD_API_KEY` | No | Raises NVD CVE rate limit from 5 to 50 req/30 s — register at nvd.nist.gov |
 
-`DATABASE_URL`, `SCREENSHOT_BASE_PATH`, and volume name variables are set automatically by docker-compose.
-
----
-
-## Deployment (pre-built images)
-
-Pre-built multi-arch images (`linux/amd64` + `linux/arm64`) are published to Docker Hub on every push to `main`:
-
-| Image | Docker Hub path |
-|-------|----------------|
-| Backend | `m1v1n/exoscan-be` |
-| Frontend | `m1v1n/exoscan-fe` |
-
-To deploy on a server or Raspberry Pi without building from source:
-
-```bash
-cp .env.example .env
-# Set SECRET_KEY, POSTGRES_PASSWORD, FRONTEND_URL in .env
-
-docker compose pull        # pulls m1v1n/exoscan-be and m1v1n/exoscan-fe from Docker Hub
-docker compose up -d
-```
-
-**GitHub Actions secrets required** (set under repo → Settings → Secrets → Actions):
-
-| Secret | Value |
-|--------|-------|
-| `DOCKERHUB_USERNAME` | `m1v1n` |
-| `DOCKERHUB_TOKEN` | A Docker Hub access token (Hub → Account Settings → Personal Access Tokens) |
+`DATABASE_URL`, `SCREENSHOT_BASE_PATH`, and volume name variables are set automatically by docker-compose. `DOCKERHUB_USERNAME` and `TAG` only matter for CI/CD.
 
 ---
 
