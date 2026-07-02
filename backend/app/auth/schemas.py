@@ -1,18 +1,20 @@
 import re
 from typing import Annotated
 
-from email_validator import EmailNotValidError, validate_email
 from pydantic import AfterValidator, BaseModel, field_validator, ConfigDict
+
+# email-validator rejects .local / .internal / .lan as reserved domains even
+# with check_deliverability=False, so we use a simple regex instead.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _validate_email(v: str) -> str:
-    try:
-        return validate_email(v, check_deliverability=False).normalized
-    except EmailNotValidError as e:
-        raise ValueError(str(e))
+    v = v.strip()
+    if not _EMAIL_RE.match(v):
+        raise ValueError("Invalid email address format")
+    return v.lower()
 
 
-# Accepts any syntactically valid email including .local / .internal / .lan domains
 EmailField = Annotated[str, AfterValidator(_validate_email)]
 
 
