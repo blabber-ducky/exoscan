@@ -359,6 +359,62 @@ Two-track UX: Recon (passive/active with tooltips) or Comprehensive Security Tes
 
 ---
 
+---
+
+## Phase 18: Launch AI Pentest from Recon Results [ ]
+
+Add a "Run AI Pentest" button to the Results page for any completed Passive or Active Recon scan (owner only). Opens a launch dialog with a target picker (original scan target + all discovered asset hostnames/URLs), Strix instructions textarea, scan mode radio, and budget input. Submits `POST /scans` with `scan_type: 'pentest'`, `parent_scan_id` set to the current scan, and `modules: []`. No backend changes required.
+
+**Frontend:**
+- [ ] `frontend/src/components/results/PentestLaunchDialog.tsx` — new dialog: target dropdown (scan.target + each asset hostname/url), instructions textarea (max 500 chars, char counter), scan mode radio (Quick/Standard/Deep), budget input, LLM-not-configured warning with Settings link, submit via `useCreateScan`
+- [ ] `frontend/src/pages/ResultsPage.tsx` — "Run AI Pentest" button: visible when `!isPentest && scan.is_owner && scan.status === 'completed'`; opens `PentestLaunchDialog`
+- [ ] `frontend/src/components/scans/NewScanForm.tsx` — verify instructions textarea is present in the AI Config step (already implemented in Phase 17; confirm it's wired correctly)
+
+**Backend:** No changes — `POST /scans` already accepts `scan_type: 'pentest'` and `parent_scan_id`.
+
+---
+
+## Phase 19: Scan Re-run [ ]
+
+Add a "Re-run" action on both the dashboard scan cards and the Results page. Creates a new scan with the identical config (target, scan_type, modules, port_config, strix_config) using the existing `POST /scans` endpoint. Re-running a pentest opens `PentestLaunchDialog` (Phase 18) pre-filled with the original target and strix_config so the user can adjust instructions/budget before launching.
+
+**Frontend:**
+- [ ] `frontend/src/components/scans/ScanCard.tsx` — replace standalone Delete button with a three-dot (`MoreVertical`) dropdown menu containing "Re-run" and "Delete"; Re-run disabled (with tooltip) while scan is `pending` or `running`
+- [ ] `frontend/src/hooks/useScans.ts` — `useRerunScan()` mutation: reads existing `Scan` object, calls `scansApi.create()` with cloned config; for `pentest` scans, opens `PentestLaunchDialog` pre-filled instead of submitting directly
+- [ ] `frontend/src/pages/ResultsPage.tsx` — "Re-run Scan" button in the header area (next to "Active Recon Assets"); same pre-fill logic for pentest
+- [ ] `frontend/src/components/ui/dropdown-menu.tsx` — add shadcn-compatible DropdownMenu component (Radix `@radix-ui/react-dropdown-menu`) if not already present
+
+**Backend:** No changes required.
+
+---
+
+## Phase 20: Ollama Deployment Modes [ ]
+
+Extend LLM provider settings to support three Ollama deployment topologies: Ollama running natively on the Docker host, as a named Docker container on `exoscan_net`, or on a remote server. The backend uses the stored `ollama_base_url` when making LiteLLM test-connection calls and when injecting env vars into the Strix runner container.
+
+**Data model:**
+- [ ] `backend/alembic/versions/009_ollama_base_url.py` — `ALTER TABLE user_settings ADD COLUMN ollama_base_url TEXT DEFAULT NULL`
+
+**Backend:**
+- [ ] `backend/app/settings/models.py` — add `ollama_base_url: Mapped[str | None]`
+- [ ] `backend/app/settings/schemas.py` — add `ollama_base_url: str | None` to `UserSettingsRequest` and `UserSettingsResponse`; validate that when `llm_provider == 'ollama'` and a key save is attempted, `ollama_base_url` is also provided (or already stored)
+- [ ] `backend/app/settings/service.py` — persist and return `ollama_base_url`
+- [ ] `backend/app/settings/router.py` — `POST /settings/test-connection`: when `llm_provider == 'ollama'`, pass `api_base=settings.ollama_base_url` to the LiteLLM completion call
+- [ ] `backend/app/recon/pentest/strix.py` — when `llm_provider == 'ollama'`:
+  - Pass `OLLAMA_API_BASE=ollama_base_url` as an env var on the Strix runner container
+  - If the URL host matches a Docker container name on `exoscan_net` (detected by absence of scheme and presence of no dots), attach the runner container to `exoscan_net` so it can reach the Ollama container by name
+
+**Frontend:**
+- [ ] `frontend/src/types/index.ts` — add `ollama_base_url: string | null` to `UserSettings` and `UserSettingsRequest`
+- [ ] `frontend/src/pages/SettingsPage.tsx` — when Ollama provider selected, show three deployment mode radio cards:
+  - **Docker host** — label: "Ollama on this machine (native install)"; auto-fills `ollama_base_url` as `http://host.docker.internal:11434`; no extra input
+  - **Docker container** — label: "Ollama as a Docker container"; shows container name input; builds URL as `http://{container_name}:11434`
+  - **Remote server** — label: "Remote Ollama server"; shows free-form URL input (e.g. `http://192.168.1.50:11434`)
+  - Deployment mode is UI-only state; the persisted value is always the resolved `ollama_base_url`
+- [ ] `frontend/src/pages/SettingsPage.tsx` — show resolved URL as read-only hint below the radio cards so users can verify what will be sent
+
+---
+
 ## Completed Phases
 
 - **Phase 1: Infrastructure** — docker-compose, Dockerfiles, nginx, postgres init, alembic migration 001 (all 7 tables), requirements.txt, .env.example, .gitignore

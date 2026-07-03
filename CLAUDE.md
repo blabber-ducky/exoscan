@@ -103,6 +103,27 @@ LLM provider configuration is stored per-user in the `user_settings` table. API 
 
 `backend/app/settings/service.py` owns `encrypt_key()` / `decrypt_key()`. The `GET /api/v1/settings` and `PUT /api/v1/settings` endpoints handle upsert. `POST /api/v1/settings/test-connection` makes a minimal LiteLLM call to validate the key before a user launches a pentest.
 
+### AI Pentest Launch from Recon Results (Phase 18)
+A "Run AI Pentest" button on the Results page (owner + completed recon only) opens `PentestLaunchDialog`. The dialog lets the user pick a target from the original scan target or any discovered asset, enter Strix instructions, and configure mode/budget. It submits `POST /scans` with `scan_type: 'pentest'`, `parent_scan_id: <source_scan_id>`, and `modules: []`. No new backend endpoint — the existing create-scan route handles it. Strix always starts fresh regardless of prior recon data; `parent_scan_id` is a reference link only.
+
+### Scan Re-run (Phase 19)
+Re-running a scan creates a new scan with the identical config by calling `POST /scans` with the existing scan's `target`, `scan_type`, `modules`, `port_config`, and `strix_config`. This is handled entirely in the frontend — no new backend endpoint. For `pentest` scans, re-run opens `PentestLaunchDialog` pre-filled with the original target and strix_config so the user can adjust instructions before launching. The Re-run action is available from the ScanCard three-dot menu and the Results page header. Re-run is disabled while a scan is `pending` or `running`.
+
+### Ollama Deployment Modes (Phase 20)
+When `llm_provider == 'ollama'`, the user specifies where Ollama is reachable via an `ollama_base_url` stored in `user_settings`. Three deployment topologies are supported:
+
+| Mode | Resolved URL | Notes |
+|------|-------------|-------|
+| Docker host (native) | `http://host.docker.internal:11434` | Ollama runs on the host OS; Docker resolves `host.docker.internal` to the host gateway |
+| Docker container | `http://{container_name}:11434` | Ollama in a container on `exoscan_net`; Strix runner must be attached to `exoscan_net` to reach it by name |
+| Remote server | user-supplied URL | Any reachable endpoint |
+
+**Backend behaviour:**
+- `POST /settings/test-connection` passes `api_base=ollama_base_url` to the LiteLLM completion call when `llm_provider == 'ollama'`
+- `run_strix()` sets `OLLAMA_API_BASE=ollama_base_url` as a container env var on the Strix runner; when the URL points to a Docker-network container name (no dots, no scheme → likely a container name), the runner is also attached to `exoscan_net` so the name resolves
+- `ollama_base_url` is stored in plain text (not encrypted) — it is a network address, not a secret
+- Migration 009 adds the column; existing rows default to NULL (Ollama users must re-save settings after upgrading)
+
 ## Security Notes
 
 - All tool arguments from user input must pass through `shlex.quote()`
