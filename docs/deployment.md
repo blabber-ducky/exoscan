@@ -6,7 +6,7 @@
 
 - A Linux host (amd64 or arm64) with Docker Engine v24+ and the Compose plugin
 - Ports 3000 (frontend) and optionally 8000 (API) reachable from your clients
-- Internet access from the host (required to pull images and Kali tool packages at scan time)
+- Internet access from the host (required to pull images and Kali tool packages at scan time; also required by Strix sandbox containers during AI Pentest runs)
 
 ### Deploy with pre-built images (recommended)
 
@@ -39,15 +39,18 @@ docker compose logs backend --tail 20   # look for "Application startup complete
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SECRET_KEY` | Yes | JWT signing secret — `openssl rand -hex 32` |
+| `SECRET_KEY` | Yes | JWT signing secret and Fernet master key — `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | Yes | PostgreSQL password |
 | `POSTGRES_USER` | No | Default: `exoscan` |
 | `POSTGRES_DB` | No | Default: `exoscan` |
 | `FRONTEND_URL` | Yes | CORS allowed origin, no trailing slash |
 | `ADMIN_EMAIL` | No | Email auto-promoted to admin on register/login |
 | `NVD_API_KEY` | No | Raises NVD CVE rate limit from 5 → 50 req/30 s |
+| `PENTEST_RESULTS_PATH` | No | Path inside the backend container where Strix writes output. Default: `/app/pentest_results` (set automatically by docker-compose) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | Default: 30 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | No | Default: 7 |
+
+`DATABASE_URL`, `SCREENSHOT_BASE_PATH`, `NUCLEI_TEMPLATES_VOLUME`, `SCREENSHOTS_VOLUME`, and `DOCKER_NETWORK` are set automatically by docker-compose and do not need to be configured manually.
 
 ---
 
@@ -59,7 +62,7 @@ When a new version is pushed to `main`, the CI workflow builds and pushes update
 # Pull the latest images
 docker compose pull
 
-# Restart services with the new images (zero-downtime rolling restart)
+# Restart services with the new images
 docker compose up -d
 ```
 
@@ -95,6 +98,7 @@ docker compose up -d
 |------|----------|----------|
 | PostgreSQL database | `exoscan_postgres_data` Docker volume | Critical |
 | Screenshots | `exoscan_screenshots_vol` Docker volume | Optional |
+| Pentest results (Strix output) | `exoscan_pentest_results_vol` Docker volume | Optional |
 | `.env` file | Host filesystem | Critical |
 
 Nuclei templates (`exoscan_nuclei_templates_vol`) do not need to be backed up — they are re-downloaded automatically on startup.
@@ -109,11 +113,19 @@ docker compose exec postgres pg_dump -U exoscan exoscan | gzip > exoscan_db_$(da
 ### Screenshots backup
 
 ```bash
-# Copy the entire screenshots volume to the host
 docker run --rm \
   -v exoscan_screenshots_vol:/data \
   -v $(pwd):/backup \
   alpine tar czf /backup/screenshots_$(date +%Y%m%d).tar.gz -C /data .
+```
+
+### Pentest results backup
+
+```bash
+docker run --rm \
+  -v exoscan_pentest_results_vol:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/pentest_results_$(date +%Y%m%d).tar.gz -C /data .
 ```
 
 ### Restore database
@@ -153,8 +165,13 @@ docker run --rm \
   -v $(pwd):/backup \
   alpine tar czf /backup/screenshots.tar.gz -C /data .
 
+docker run --rm \
+  -v exoscan_pentest_results_vol:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/pentest_results.tar.gz -C /data .
+
 # Copy backups and .env to the new server
-scp exoscan_db.sql.gz screenshots.tar.gz .env user@new-server:~/exoscan/
+scp exoscan_db.sql.gz screenshots.tar.gz pentest_results.tar.gz .env user@new-server:~/exoscan/
 ```
 
 ### Step 2 — Set up the new server
@@ -183,6 +200,12 @@ docker run --rm \
   -v exoscan_screenshots_vol:/data \
   -v $(pwd):/backup \
   alpine tar xzf /backup/screenshots.tar.gz -C /data
+
+# Restore pentest results (if you have them)
+docker run --rm \
+  -v exoscan_pentest_results_vol:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/pentest_results.tar.gz -C /data
 ```
 
 ### Step 4 — Start remaining services
@@ -257,9 +280,28 @@ docker compose exec postgres psql -U exoscan exoscan \
   -c "UPDATE scans SET status='failed', error_message='Interrupted by server restart' WHERE status='running';"
 ```
 
+### AI Pentest scan fails immediately
+
+Check the scan logs on the Scan Progress page for the specific error. Common causes:
+
+| Error message | Fix |
+|--------------|-----|
+| `LLM API key not configured` | Visit `/settings` and save a valid API key for your provider |
+| `Docker error running Strix` | Check `docker compose logs backend` and ensure the Docker socket is mounted correctly |
+| `Strix exited with code 1` | Check the streaming logs — usually an authentication error with the LLM provider |
+| `Strix timed out after 2 hours` | Deep scans on large targets may exceed the 2-hour limit; try Standard or Quick mode |
+
+### Strix sandbox containers not cleaning up
+
+Strix spawns its own `ghcr.io/usestrix/strix-sandbox` containers on the host. If a pentest run is interrupted, these may linger. Remove them:
+
+```bash
+docker ps -a --filter ancestor=ghcr.io/usestrix/strix-sandbox:1.0.0 --format '{{.ID}}' | xargs -r docker rm -f
+```
+
 ### Containers not cleaned up after scan
 
-Orphaned Kali containers are named with a `exoscan_` prefix. List and remove them:
+Orphaned Kali containers are named with an `exoscan_` prefix. List and remove them:
 
 ```bash
 docker ps -a --filter name=exoscan_ --format '{{.ID}}' | xargs -r docker rm -f
@@ -267,7 +309,7 @@ docker ps -a --filter name=exoscan_ --format '{{.ID}}' | xargs -r docker rm -f
 
 ### Out of disk space
 
-Screenshots and the Kali image cache are the main consumers.
+Screenshots, the Kali image cache, and Strix run output are the main consumers.
 
 ```bash
 # Check volume sizes
@@ -278,6 +320,10 @@ docker image prune -f
 
 # Remove screenshots for old scans (replace the scan IDs as needed)
 docker run --rm -v exoscan_screenshots_vol:/data alpine rm -rf /data/<scan-id>
+
+# Remove old Strix run directories
+docker run --rm -v exoscan_pentest_results_vol:/data alpine sh -c 'ls /data'
+docker run --rm -v exoscan_pentest_results_vol:/data alpine rm -rf /data/exoscan-<scan-id-prefix>
 ```
 
 ### Nuclei templates not updating

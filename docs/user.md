@@ -2,64 +2,99 @@
 
 ## What Is Exoscan?
 
-Exoscan is an external reconnaissance platform for security professionals. You give it a domain or IP address, choose which techniques to run, and it collects publicly observable information about that target — DNS records, subdomains, open ports, server technologies, known CVEs — and presents everything in one place with actionable follow-up suggestions.
+Exoscan is an external reconnaissance and AI-powered security testing platform for security professionals. You give it a domain or IP address, choose a mode, and it does the work:
 
-All scanning tools run inside ephemeral Docker containers that are destroyed immediately after each stage completes. Results are stored in the database so you can return to them later.
+- **Recon** — Discovers subdomains, DNS records, open ports, server technologies, and known CVEs, and presents everything in one place with actionable follow-up suggestions.
+- **Comprehensive Security Test** — Runs an AI-powered full pentest via Strix, autonomously discovering and validating vulnerabilities (OWASP Top 10, injection, auth bypass, business logic flaws, and more) and reporting them with CVSS scores, reproduction steps, and patch suggestions.
+
+All scanning tools run inside ephemeral Docker containers that are destroyed immediately after each run. Results are stored in the database so you can return to them later.
 
 **Intended use:** Only scan infrastructure you own or have written permission to test.
 
 ---
 
-## Scan Types
+## Choosing a Mode
 
-### Passive
+When you click **New Scan**, the first step is choosing between two modes:
 
-Input: a **main domain** (e.g. `example.com`) or IP address.
+### Recon
 
-Collects information without sending probes directly to the target's servers. Everything comes from DNS resolvers, certificate transparency logs, and public search indexes.
+Non-destructive discovery and profiling of a target. You then choose a sub-type:
 
-Good for: initial reconnaissance before an engagement, broad discovery of what belongs to a domain, low-noise profiling.
+**Passive Recon**
+- Input: a main domain (e.g. `example.com`) or IP address
+- Collects information without sending probes directly to the target's servers — everything comes from DNS resolvers, certificate transparency logs, and public search indexes
+- Good for: initial reconnaissance before an engagement, broad discovery of what belongs to a domain, low-noise profiling
 
-### Active
+**Active Recon**
+- Input: a specific URL (e.g. `https://app.example.com`) or IP address
+- Sends requests directly to the target: port probes, HTTP requests for fingerprinting, visual screenshots
+- Good for: deep inspection of a single known endpoint, technology stack identification, CVE correlation
 
-Input: a **specific URL** (e.g. `https://app.example.com`) or IP address.
+Both sub-types show description tooltips on the selection cards so you can make an informed choice.
 
-Sends requests directly to the target: port probes, HTTP requests for fingerprinting, visual screenshots. Leaves traces in the target's logs.
+### Comprehensive Security Test
 
-Good for: deep inspection of a single known endpoint, technology stack identification, CVE correlation.
+- Input: a domain, URL, or IP address
+- Runs a fully automated AI pentest via [Strix](https://github.com/usestrix/strix)
+- Requires an LLM API key configured in **Settings** — the AI model drives the entire test autonomously
+- Does not build on prior recon data — Strix always starts fresh against the target
+- Good for: thorough automated security assessment, finding logic flaws and authentication issues that simple scanners miss
 
-### Comprehensive
-
-Input: a **main domain** or IP address.
-
-Runs passive discovery first to find all subdomains/assets, then runs active modules against every discovered asset automatically. The most thorough option, and the one that generates the most traffic to the target.
-
-Good for: a full external attack-surface audit.
+**Requires:** Before launching, visit **Settings** (gear icon in the navbar) and add your LLM API key.
 
 ---
 
-## Modules
+## Settings
+
+The Settings page (`/settings`) lets you configure your LLM provider for use with Comprehensive Security Test. Accessible via the Settings link in the top navigation bar.
+
+### LLM Provider
+
+| Field | Description |
+|-------|-------------|
+| **Provider** | Your LLM service: OpenAI, Anthropic, Google Vertex AI, AWS Bedrock, Azure OpenAI, OpenRouter, or Ollama/Local |
+| **Model** | Any model name accepted by the provider (e.g. `gpt-4o`, `claude-sonnet-4-6`) |
+| **API Key** | Your provider API key — stored encrypted at rest, shown masked (`sk-...****`) once saved. Re-enter to replace. |
+
+### Perplexity API Key (Optional)
+
+If configured, Strix will use Perplexity to perform web OSINT searches as part of its reconnaissance. Enter your Perplexity API key here.
+
+### AI Pentest Defaults
+
+These pre-fill the per-scan config when you launch a Comprehensive Security Test. You can override them each time.
+
+| Setting | Description |
+|---------|-------------|
+| **Default Scan Mode** | Quick (~5 min) / Standard (30–60 min) / Deep (1–4 hrs). Controls how deeply Strix explores the target. |
+| **Default Max Budget** | Maximum USD to spend on LLM API calls per run. Must be between $0.01 and $100.00. Enforced server-side. |
+| **Strix Telemetry** | Whether to send anonymous usage data to the Strix developers. Off by default. |
+
+Click **Test Connection** to validate your API key before launching a pentest.
+
+---
+
+## Recon Modules
 
 ### Passive Modules
 
 | Module | What it does |
 |--------|-------------|
-| **DNS Recon** | Queries DNS for A, AAAA, MX, NS, TXT, CNAME, and SOA records. Uses `dnsrecon` inside a Kali container. Results appear in the DNS tab on the results page. |
-| **IP Profiling** | Looks up the IP address in ipinfo.io to get ASN, organisation, country, city, and reverse DNS. Runs in-process (no container). |
-| **Asset Identification** | Discovers subdomains via three sources: `subfinder` (passive DNS aggregation), certificate transparency logs (crt.sh), and DuckDuckGo dorking. Each discovered hostname is probed for liveness; live ones become assets in the results. |
+| **DNS Recon** | Queries DNS for A, AAAA, MX, NS, TXT, CNAME, and SOA records. Uses `dnsrecon` inside a Kali container. |
+| **IP Profiling** | Looks up the IP address in ipinfo.io to get ASN, organisation, country, city, and reverse DNS. |
+| **Asset Identification** | Discovers subdomains via `subfinder` (passive DNS aggregation), certificate transparency logs (crt.sh), and DuckDuckGo dorking. |
 
 ### Active Modules
 
 | Module | What it does |
 |--------|-------------|
 | **Technology Fingerprinting** | Runs `whatweb` against the target URL to identify software, frameworks, CMS platforms, server headers, and version strings. |
-| **Screenshot Capture** | Uses `gowitness` to take a headless-browser screenshot of each live asset. Screenshots are displayed in the results card for that asset. |
-| **CVE Detection** | Requires Technology Fingerprinting. Looks up each detected technology + version in the NVD database (NIST) and correlates known CVEs with CVSS scores. Results are cached for 24 hours. |
-| **Port & Service Scan** | Runs `nmap -sV` to identify open TCP ports and the services/versions running on them. The port range is configurable (see below). |
+| **Screenshot Capture** | Uses `gowitness` to take a headless-browser screenshot of each live asset. |
+| **CVE Detection** | Requires Technology Fingerprinting. Looks up each detected technology + version in the NVD database (NIST) and correlates known CVEs with CVSS scores. Results cached 24 hours. |
+| **Port & Service Scan** | Runs `nmap -sV` to identify open TCP ports and service versions. Port range is configurable. |
 
-### CVE Detection dependency
-
-CVE Detection requires knowing which software versions are running, so it always runs after Technology Fingerprinting. If you select CVE Detection without Technology Fingerprinting, the wizard will automatically enable Fingerprinting. If you later deselect Fingerprinting, CVE Detection will be automatically deselected too.
+**CVE Detection dependency:** CVE Detection requires Technology Fingerprinting. The wizard enforces this automatically — selecting CVE Detection adds Fingerprinting; deselecting Fingerprinting removes CVE Detection.
 
 ---
 
@@ -74,58 +109,100 @@ When you select the Port & Service Scan module, a configuration step appears wit
 | **HTTP/S Only** | 80, 443, 8080, 8443 | Web-only targets |
 | **Custom** | Your list | Specific requirements |
 
-Custom port syntax: comma-separated ports and ranges, e.g. `22,80,443,8080-8090`. All values must be integers between 1 and 65535; ranges must have the start ≤ end.
+Custom port syntax: comma-separated ports and ranges, e.g. `22,80,443,8080-8090`. All values must be integers between 1 and 65535; ranges must have start ≤ end.
 
 ---
 
-## Reading Results
+## Comprehensive Security Test Configuration
 
-### Scan Progress Page
+When you select Comprehensive Security Test, you configure:
+
+| Field | Description |
+|-------|-------------|
+| **Target** | Domain, full URL, or IPv4 address |
+| **Scan Mode** | Quick / Standard / Deep — controls how deeply Strix explores the target |
+| **Additional Instructions** | Optional guidance for the AI (max 500 chars), e.g. "Focus on authentication bypass and IDOR" |
+| **Max Budget** | Per-run USD cap for LLM API usage (max $100) |
+
+If your LLM API key is not configured, a warning banner appears with a link to Settings.
+
+---
+
+## Scan Progress Page
 
 While a scan is running you can watch two things:
 
-- **Stage stepper** — shows which of the four stages (Passive, Probe, Active, Suggestions) is currently running, and which are done or pending.
-- **Live log stream** — raw output from the orchestrator and all tool containers, streamed over WebSocket. Log lines are colour-coded: INFO is white, WARN is yellow, ERROR is red. If you close the tab and come back, the log history is replayed from the database.
+- **Stage stepper** — shows which stages are done, running, or pending
+  - Recon stages: Passive → Liveness Probe → Active → Suggestions
+  - AI Pentest stages: Preparing → AI Pentest → Parsing Findings
+- **Live log stream** — raw output from the orchestrator and tool containers, streamed over WebSocket. Log lines are colour-coded: INFO white, WARN yellow, ERROR red. If you close the tab and return, the log history is replayed from the database.
 
 When the scan completes, the page automatically redirects to the results page after 1.5 seconds.
 
-### Results Page — Passive Recon Panel
+You can also **pause**, **resume**, or **cancel** a running scan using the control buttons on the Scan page (owner only).
 
-Three tabs across the top of the results page show passive-phase output:
+---
+
+## Results Page — Recon
+
+### Passive Recon Panel
+
+Three tabs show passive-phase output:
 
 - **DNS** — all DNS records found for the main target.
-- **Subdomains** — every hostname discovered by `subfinder`, crt.sh, and dorking, with source tags.
-- **Dork Hits** — DuckDuckGo search results from structured queries against the domain. Useful for finding exposed login pages, admin panels, and indexed sensitive paths.
+- **Subdomains** — every hostname discovered by `subfinder`, crt.sh, and dorking.
+- **Dork Hits** — DuckDuckGo search results from structured queries. Useful for finding exposed login pages, admin panels, and indexed sensitive paths.
 
-### Results Page — Asset Grid
+### Asset Grid
 
 Each live asset gets a card showing:
 
-- **Screenshot** (if screenshot capture was enabled) — click to open full size.
-- **HTTP status code** and page title.
-- **WAF badge** — shown in orange if a web application firewall was detected.
-- **Technology badges** — up to six technologies; if more were found, an overflow count links to the full list.
-- **Scan status banner** — assets that were unreachable, timed out, or had filtered ports show a yellow/red banner explaining the status. They still appear in results; they were just skipped by active modules.
+- **Screenshot** (if captured) — click to open full size
+- **HTTP status code** and page title
+- **WAF badge** — shown in orange if a web application firewall was detected
+- **Technology badges** — up to six; overflow count links to the full list
+- **Scan status banner** — assets that were unreachable, timed out, or filtered show a status banner; they were skipped by active modules but still appear in results
 
 Expanding an asset card reveals three tabs:
 
 | Tab | Contents |
 |-----|----------|
-| **Ports** | Table of open ports, protocol, service name, and version string from nmap. |
-| **CVEs** | List of CVEs correlated with detected technologies, each with CVSS score, severity badge, description, and link to the NVD entry. |
-| **Suggested** | Follow-up scan suggestions generated based on discovered technologies and CVE severity. See below. |
+| **Ports** | Table of open ports, protocol, service name, and version string from nmap |
+| **CVEs** | CVEs correlated with detected technologies — CVSS score, severity, description, NVD link |
+| **Suggested** | Follow-up scan suggestions per-asset. Click **Run** to execute one. |
 
-### Suggested Scans
+### Active Recon Follow-up
 
-After active recon, Exoscan generates targeted follow-up scan suggestions for each asset. Suggestions are scored 0–100 and sorted by priority. Priority is boosted by 40 points when the asset has at least one CVE with CVSS ≥ 7.0 (high or critical severity).
+After a completed Passive Recon, the **Active Recon Assets** button appears (owner only). This opens a dialog to select which discovered assets to run active recon against, with module and port configuration — without re-running passive discovery.
+
+---
+
+## Results Page — Comprehensive Security Test
+
+The results page shows a **Pentest Findings** panel with:
+
+- **Finding count** header
+- **Severity filter chips** — filter by Critical / High / Medium / Low / Informational
+- **Finding cards**, one per vulnerability, each showing:
+  - **Severity badge** — colour-coded (red = Critical, orange = High, yellow = Medium, blue = Low, grey = Informational)
+  - **Title** and CVSS score
+  - **Affected endpoint** (if identified)
+  - **Description**
+  - **Reproduction Steps** — expandable section
+  - **Patch Suggestion** — expandable section
+  - **CVE IDs** (if correlated)
+
+---
+
+## Secondary Scan Suggestions
+
+After active recon, Exoscan generates targeted follow-up scan suggestions for each asset based on detected technologies and CVE severity. Suggestions are scored 0–100 and sorted by priority.
 
 | Risk Level | Meaning |
 |-----------|---------|
-| HIGH | The suggested scan targets a known-dangerous technology or a confirmed high-severity CVE path |
+| HIGH | Targets a known-dangerous technology or confirmed high-severity CVE path |
 | MEDIUM | Moderately risky — worth running but less urgent |
 | LOW | Supplementary (content discovery, brute-force paths) |
-
-To run a suggested scan, click the **Run** button on the suggestion card. The scan executes in a new ephemeral container, streams output in the log viewer, and stores a result summary when it finishes.
 
 ---
 
@@ -133,85 +210,75 @@ To run a suggested scan, click the **Run** button on the suggestion card. The sc
 
 | Status | Meaning |
 |--------|---------|
-| `live` | The asset responded within the probe timeout. Active modules ran against it. |
-| `unreachable` | No response at all from the asset. No active modules ran. |
-| `timeout` | The asset responded too slowly and the probe timed out. No active modules ran. |
-| `filtered` | The asset appears to be behind a firewall or ACL that dropped all probes. |
+| `live` | The asset responded within the probe timeout. Active modules ran. |
+| `unreachable` | No response. No active modules ran. |
+| `timeout` | Asset responded too slowly. No active modules ran. |
+| `filtered` | Traffic appears to be dropped by a firewall/ACL. |
 
 ---
 
 ## Sharing Scan Results
 
-Completed scans can be shared with other registered users, either individually or through groups.
+Completed scans can be shared with other registered users, individually or through groups.
 
 ### Sharing a Scan
 
-Click the **Share** icon on any completed scan card in your dashboard. The share dialog has two tabs:
+Click the **Share** icon on any completed scan card. The share dialog has two tabs:
 
-**Groups tab** — lists every group you are a member of. Click **Share** to grant all current (and future) members of that group read access to your scan. The button changes to **Shared** once active. You can only share with groups you belong to; groups you are not a member of do not appear here.
+**Groups tab** — lists every group you are a member of. Click **Share** to grant all group members read access. You can only share with groups you belong to.
 
-**Users tab** — search for any registered username. Click **Share** next to a result to grant that specific user access.
+**Users tab** — search for any registered username and share directly with that user.
 
 ### Viewing Shared Scans
 
-Scans shared with you appear in your dashboard alongside your own scans. Shared scans show the owner's username next to the scan status. You can:
-
-- View the scan page and results in full
-- Watch the live log stream (or replay history)
-
-You cannot delete, re-share, or trigger suggested scans on a scan you do not own.
+Scans shared with you appear in your dashboard. Shared scans show the owner's username. You can view the scan page and results, and replay the log stream, but you cannot delete, re-share, or trigger follow-up scans.
 
 ### Revoking Access
 
-Open the share dialog for any of your scans. The current share list at the top of the dialog shows each active share with a revoke button. Removing a user or group share immediately removes their access.
-
-Deleting a group (admin action) also removes any scan shares that targeted it.
+Open the share dialog for any of your scans. The current share list shows each active share with a revoke button.
 
 ---
 
 ## Admin Panel
 
-Administrators have access to a dedicated panel at `/admin` (the **Admin** link in the navigation bar, visible only to admins).
+Administrators have access to a dedicated panel at `/admin` (the **Admin** link in the navbar, visible only to admins).
 
 ### Becoming an Admin
 
-Admin access is controlled by the `ADMIN_EMAIL` environment variable set by whoever operates the Exoscan instance. The account registered with that email address is automatically promoted to admin on their first login. Contact your instance operator if you need admin access.
+Admin access is controlled by the `ADMIN_EMAIL` environment variable set by whoever operates the Exoscan instance. The account registered with that email is automatically promoted to admin on their first login.
 
 ### Groups
 
-The **Groups** tab lets you create and manage groups, which are the primary way to share scans with multiple users at once.
+The **Groups** tab lets you create and manage groups for scan sharing.
 
-**Creating a group:**
-1. Enter a group name (must be unique across the instance) and an optional description.
-2. Click **Create**.
+**Creating a group:** Enter a name (must be unique) and an optional description. Click **Create**.
 
-**Managing members:**
-- Click any group row to expand it.
-- The member list shows current members with a remove button next to each name.
-- Use the search box to find users to add. Only users not already in the group appear in the results. Click **Add** to add them.
+**Managing members:** Click any group row to expand it. Use the search box to find users to add.
 
-**Deleting a group** removes all memberships and all scan shares that targeted it. Users who had access only through that group immediately lose access to the shared scans.
+**Deleting a group** removes all memberships and all scan shares that targeted it.
 
 ### Users
 
-The **Users** tab shows all registered accounts with their email address, admin/disabled status, and current group memberships.
+The **Users** tab shows all registered accounts with their email, admin/disabled status, and group memberships.
 
 ---
 
 ## Limitations
 
-- **Rate limiting:** DuckDuckGo dorking is throttled to 1 request per 3 seconds to avoid being blocked.
-- **CVE coverage:** CVE data comes from the NVD (NIST) API. Results depend on how accurately `whatweb` identifies software versions; unrecognised version strings may produce no CVE matches.
-- **Screenshot reliability:** GoWitness uses a headless browser. Pages that require JavaScript-heavy login flows, CAPTCHA, or client certificates will screenshot a blank or error page.
-- **Container cold start:** The first scan after a Docker image pull can be slow (100–200 MB Kali image download). Subsequent scans are fast because Docker caches the image.
-- **Nuclei templates:** The Nuclei CVE template set is updated every 24 hours automatically on backend startup. New CVE templates published after the last update won't appear in suggested scan results until the next update cycle.
-- **Not a substitute for manual testing.** Automated recon surfaces the obvious; skilled adversaries hide in the details. Use Exoscan results as a starting point, not a final verdict.
+- **Rate limiting:** DuckDuckGo dorking is throttled to 1 request per 3 seconds.
+- **CVE coverage:** Results depend on how accurately `whatweb` identifies software versions; unrecognised version strings may produce no CVE matches.
+- **Screenshot reliability:** Pages requiring CAPTCHA, heavy JavaScript auth, or client certificates may screenshot blank or error pages.
+- **Container cold start:** The first scan after a Docker image pull can be slow (100–200 MB Kali image). Subsequent scans are fast due to Docker image caching.
+- **AI Pentest duration:** Quick mode takes ~5 minutes; Standard 30–60 minutes; Deep 1–4 hours. There is a server-side 2-hour hard cap — very large targets on Deep mode may be cut short.
+- **AI Pentest cost:** LLM API usage is billed by your provider. Set a conservative `Max Budget` limit and review costs after your first few runs.
+- **AI Pentest accuracy:** Strix is automated but not infallible. Results should be validated manually before reporting. False positives are possible.
+- **Not a substitute for manual testing.** Automated tooling surfaces the obvious. Use Exoscan results as a starting point, not a final verdict.
 
 ---
 
 ## Responsible Use
 
-Exoscan is a tool for authorised security testing. Running active scans against systems you do not own or have explicit written permission to test is illegal in most jurisdictions and unethical in all of them. The tool does not impose any technical barrier against misuse — that responsibility is yours.
+Exoscan is a tool for authorised security testing. Running active scans or AI pentests against systems you do not own or have explicit written permission to test is illegal in most jurisdictions and unethical in all of them.
 
 Use it to:
 - Audit your own infrastructure

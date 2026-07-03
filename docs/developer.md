@@ -28,12 +28,13 @@ See `.env.example` for the full list. Key variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SECRET_KEY` | Yes | JWT signing secret — 32+ random bytes |
+| `SECRET_KEY` | Yes | JWT signing secret and Fernet master key — 32+ random bytes; changing it invalidates all tokens and encrypted API keys |
 | `DATABASE_URL` | Auto | Set by docker-compose; override for local DB |
 | `FRONTEND_URL` | Yes | CORS allowed origin (e.g. `http://localhost:3000`) |
-| `ADMIN_EMAIL` | No | Email of the account to auto-promote to admin; empty string disables auto-promotion |
+| `ADMIN_EMAIL` | No | Email of the account to auto-promote to admin |
 | `NVD_API_KEY` | No | Raises NVD rate limit from 5 to 50 req/30 s |
 | `SCREENSHOT_BASE_PATH` | Auto | Internal backend path (`/app/static/screenshots`) |
+| `PENTEST_RESULTS_PATH` | Auto | Internal backend path for Strix output (`/app/pentest_results`) |
 | `NUCLEI_TEMPLATES_VOLUME` | Auto | Docker volume name for nuclei templates |
 | `SCREENSHOTS_VOLUME` | Auto | Docker volume name for screenshots |
 
@@ -45,7 +46,7 @@ There is no other way to create an admin. The `is_admin` flag cannot be set thro
 
 ## Running Database Migrations
 
-After modifying any ORM model in `backend/app/scans/models.py` or `backend/app/auth/models.py`:
+After modifying any ORM model:
 
 ```bash
 # Auto-generate migration from model diff
@@ -61,7 +62,7 @@ docker compose exec backend alembic current
 docker compose exec backend alembic downgrade -1
 ```
 
-Migration files live in `backend/alembic/versions/`. Always review auto-generated files before committing — Alembic can miss some changes (e.g. column type narrowing, index changes).
+Migration files live in `backend/alembic/versions/`. Always review auto-generated files before committing — Alembic can miss some changes (e.g. column type narrowing, index changes, CHECK constraint updates). Always write and run migrations manually for constraint changes.
 
 ## Adding a New Passive Module
 
@@ -99,7 +100,6 @@ async def run(scan_id: str, target: str, log_fn: _LOG) -> list[dict]:
 
 
 def _parse(raw: bytes) -> list[dict]:
-    # Parse tool output and return a list of dicts
     ...
 ```
 
@@ -116,8 +116,6 @@ PASSIVE_MODULES = {"dns_recon", "ip_profiling", "asset_identification", "my_modu
 
 In `backend/app/recon/orchestrator.py`, inside `_run_passive_stage()`:
 ```python
-from app.recon.passive import dns, dorking, ip_profiling, mymodule, subdomains
-
 if "my_module" in modules:
     task_keys.append("mymodule")
     coros.append(mymodule.run(scan_id, target, log_fn))
@@ -136,7 +134,7 @@ In `frontend/src/components/scans/NewScanForm.tsx`, add to `PASSIVE_MODULES`:
 
 Active modules run against individual live assets discovered during passive/probe stages.
 
-**1. Create the module file** — same pattern as passive but receives a `ScanAsset` instead of a plain target string:
+**1. Create the module file** — same pattern as passive but receives a `ScanAsset`:
 
 ```python
 # backend/app/recon/active/mymodule.py
@@ -160,17 +158,15 @@ async def run(scan_id: str, asset: ScanAsset, log_fn) -> list[dict]:
 
 ## Adding a New Secondary Scan Template
 
-Secondary scan templates are follow-up scans suggested after active recon. No schema changes needed — just add an entry to the registry.
+Secondary scan templates are follow-up scans suggested after active recon. No schema changes needed.
 
 ```python
 # backend/app/recon/secondary/templates.py
 
 SCAN_TEMPLATES: dict[str, list[ScanTemplate]] = {
-    # ...existing entries...
-
     "mytechnology": [
         ScanTemplate(
-            scan_type="my_scan_type",      # matches executor dispatch key
+            scan_type="my_scan_type",
             display_name="My Scan Name",
             description="What this scan does, shown in the UI",
             risk_level="MEDIUM",           # LOW | MEDIUM | HIGH
@@ -180,10 +176,35 @@ SCAN_TEMPLATES: dict[str, list[ScanTemplate]] = {
 }
 ```
 
-Then add the corresponding command in `backend/app/recon/secondary/executor.py`:
-- Add an entry to `_EXEC` with `tools`, `timeout`, and `extract_path`
-- Add the command builder branch in `_build_command()`
-- Add a result summary branch in `_summarise()`
+Then add the corresponding command in `backend/app/recon/secondary/executor.py`.
+
+## LLM Key Encryption Pattern
+
+User LLM API keys are stored in `user_settings.llm_api_key_encrypted` using Fernet symmetric encryption.
+
+```python
+# backend/app/settings/service.py
+import base64, hashlib
+from cryptography.fernet import Fernet
+from app.config import settings as app_settings
+
+def _fernet() -> Fernet:
+    raw = app_settings.secret_key.encode()
+    key = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())
+    return Fernet(key)
+
+def encrypt_key(value: str) -> str:
+    return _fernet().encrypt(value.encode()).decode()
+
+def decrypt_key(blob: str) -> str:
+    return _fernet().decrypt(blob.encode()).decode()
+```
+
+Rules:
+- Decryption happens in-process only, at pentest launch time (in `orchestrator._run_pentest_stage()`)
+- Plaintext keys must never appear in logs, error messages, or API responses
+- The API always returns masked keys (`sk-...****`) via `to_response()` in `service.py`
+- Changing `SECRET_KEY` invalidates all existing encrypted keys — users must re-enter them
 
 ## Running a Tool in Isolation
 
@@ -253,14 +274,16 @@ There are two service helpers for fetching a scan by ID:
 | `get_scan_or_404(db, scan_id, user_id)` | Mutations — returns 404 if not owner |
 | `get_accessible_scan_or_404(db, scan_id, user_id)` | Reads — owner OR shared viewer |
 
-Any new read-only endpoint (results, exports, etc.) should use `get_accessible_scan_or_404`. Any new mutation endpoint (cancel, re-run, delete) should use `get_scan_or_404`.
+Any new read-only endpoint (results, pentest results, exports) should use `get_accessible_scan_or_404`. Any new mutation endpoint (cancel, re-run, delete) should use `get_scan_or_404`.
 
 The WS handler checks the same `_has_share_access()` clause before accepting a connection. If you add a new streaming endpoint, apply the same check.
 
 ## Code Style Notes
 
 - **No comments unless the why is non-obvious.** Function and variable names should be self-documenting.
-- **No shell=True anywhere.** All tool execution goes through the Docker Python SDK (`container.run()`). `shlex.quote()` is for quoting values inside the command string passed to the container, not for shell invocation.
-- **All user-derived values in tool commands must be `shlex.quote()`'d.** This is enforced by code review — the CLAUDE.md rule is the authoritative reference.
+- **No shell=True anywhere.** All tool execution goes through the Docker Python SDK. `shlex.quote()` is for quoting values inside the command string, not for shell invocation.
+- **All user-derived values in tool commands must be `shlex.quote()`'d.** Applies to recon tool commands and Strix `--instruction`/`--target` arguments.
+- **Strix instructions**: strip control characters, max 500 chars, then `shlex.quote()`.
 - **Alembic for all schema changes.** Never `ALTER TABLE` manually in production.
 - **`asyncio.gather(return_exceptions=True)`** for parallel module execution. Individual module failures are logged at ERROR level but do not abort the scan.
+- **Blocking Docker SDK calls** (container log streaming, `container.wait()`) must run in `asyncio.get_event_loop().run_in_executor(None, ...)` — never directly await them from a coroutine.
