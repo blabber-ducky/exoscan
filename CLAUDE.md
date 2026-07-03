@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Exoscan is a containerised external reconnaissance web application for security professionals. Given a domain or IP, it runs passive and/or active enumeration — DNS, subdomains, DuckDuckGo dorking, WhatWeb fingerprinting, GoWitness screenshots, NVD CVE lookup — and presents results with actionable follow-up scan suggestions.
+Exoscan is a containerised external reconnaissance and AI-powered pentesting web application for security professionals. It supports three recon types — Passive Recon (DNS, subdomains, dorking), Active Recon (fingerprinting, screenshots, CVE detection, port scan), and Comprehensive Recon (passive then active on every discovered asset) — plus an AI Pentest mode powered by [Strix](https://github.com/usestrix/strix). Results are displayed per-asset with screenshots, tech stack, CVEs, suggested scans, and pentest findings. The internal DB enum values remain `passive`, `active`, `comprehensive`, `pentest`; user-facing labels are "Passive Recon", "Active Recon", "Comprehensive Recon", "AI Pentest" (defined in `frontend/src/types/index.ts:SCAN_TYPE_LABELS`).
 
 ## Stack
 
@@ -12,6 +12,7 @@ Exoscan is a containerised external reconnaissance web application for security 
 | Backend | Python 3.12 + FastAPI + SQLAlchemy 2.0 (async) + Alembic |
 | Database | PostgreSQL 16 |
 | Scanning | Ephemeral `kalilinux/kali-rolling` Docker containers, tools installed at runtime |
+| AI Pentest | Strix (`pip install strix-agent`) in `python:3.12-slim` runner container with Docker socket |
 | Auth | JWT (python-jose) + bcrypt (passlib) |
 | Real-time | FastAPI WebSocket |
 
@@ -30,10 +31,11 @@ API docs: http://localhost:8000/docs
 
 See `.env.example` for all required variables. Key ones:
 
-- `SECRET_KEY` — JWT signing secret (generate with `openssl rand -hex 32`)
+- `SECRET_KEY` — JWT signing secret (generate with `openssl rand -hex 32`); also used as master key for Fernet-encrypting user LLM API keys in the DB
 - `DATABASE_URL` — set automatically by docker-compose
 - `NVD_API_KEY` — optional, raises NVD rate limit from 5 to 50 req/30s
 - `SCREENSHOT_BASE_PATH` — internal path inside backend container (`/app/static/screenshots`)
+- `PENTEST_RESULTS_PATH` — where strix run output is read from inside backend container (`/app/pentest_results`)
 
 ## Key Architectural Patterns
 
@@ -90,6 +92,16 @@ Add one entry to the `SCAN_TEMPLATES` dict in `backend/app/recon/secondary/templ
 ]
 ```
 No schema changes needed.
+
+### Strix AI Pentest Runner
+`backend/app/recon/pentest/strix.py:run_strix()` runs Strix as a subprocess inside a `python:3.12-slim` container. The runner container has `/var/run/docker.sock` mounted so Strix can spawn its own sandbox containers (`ghcr.io/usestrix/strix-sandbox:1.0.0`) on the host. LLM credentials are decrypted from the user's `user_settings` row (Fernet + SECRET_KEY) and passed as container env vars (`STRIX_LLM`, `LLM_API_KEY`). Strix writes findings to `pentest_results_vol`; the backend parses `vulnerabilities.json` after the container exits and writes rows to `pentest_findings`.
+
+**Critical:** Strix `--instruction` content must be sanitised (strip control chars, max 500 chars) and passed through `shlex.quote()`. LLM API keys must never appear in logs. `--non-interactive` is mandatory. `--max-budget-usd` is always set (server-side cap: 100 USD max).
+
+### User Settings & LLM Key Encryption
+LLM provider configuration is stored per-user in the `user_settings` table. API keys are encrypted at rest using Fernet symmetric encryption: a 32-byte key is derived from `SECRET_KEY` via SHA-256, then used as the Fernet key. Decryption happens in-process only when launching a strix run. The API always returns masked keys (`sk-...****`), never plaintext.
+
+`backend/app/settings/service.py` owns `encrypt_key()` / `decrypt_key()`. The `GET /api/v1/settings` and `PUT /api/v1/settings` endpoints handle upsert. `POST /api/v1/settings/test-connection` makes a minimal LiteLLM call to validate the key before a user launches a pentest.
 
 ## Security Notes
 
