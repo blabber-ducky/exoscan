@@ -103,3 +103,11 @@ export function usePatchScan(scanId: string) {
     },
   })
 }
+
+export function usePentestResults(id: string | undefined) {
+  return useQuery({
+    queryKey: ['pentest-results', id],
+    queryFn: () => scansApi.pentestResults(id!),
+    enabled: !!id,
+  })
+}

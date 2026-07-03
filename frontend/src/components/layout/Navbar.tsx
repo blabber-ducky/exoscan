@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ScanSearch, LogOut, User, Shield } from 'lucide-react'
+import { ScanSearch, LogOut, User, Shield, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 
@@ -29,6 +29,12 @@ export function Navbar() {
               </Link>
             </Button>
           )}
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/settings">
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          </Button>
           {user && (
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
               <User className="h-3.5 w-3.5" />

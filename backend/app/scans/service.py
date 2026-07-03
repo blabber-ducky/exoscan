@@ -7,10 +7,12 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Group, GroupMember, User
-from app.scans.models import Scan, ScanAsset, ScanCVE, ScanShare, SuggestedScan
+from app.scans.models import PentestFinding, Scan, ScanAsset, ScanCVE, ScanShare, SuggestedScan
 from app.scans.schemas import (
     AssetResponse,
     CVESchema,
+    PentestFindingSchema,
+    PentestResultsResponse,
     ScanResponse,
     ScanResultsResponse,
     ScanShareResponse,
@@ -238,6 +240,7 @@ def scan_to_response(
     scan: Scan,
     asset_count: int = 0,
     cve_count: int = 0,
+    pentest_findings_count: int = 0,
     is_owner: bool = True,
     owner_username: str | None = None,
 ) -> ScanResponse:
@@ -247,8 +250,10 @@ def scan_to_response(
         scan_type=scan.scan_type,
         modules=scan.modules,
         port_config=scan.port_config,
+        strix_config=scan.strix_config if hasattr(scan, "strix_config") else {},
         status=scan.status,
         completed_stages=list(scan.completed_stages or []),
+        parent_scan_id=str(scan.parent_scan_id) if getattr(scan, "parent_scan_id", None) else None,
         dork_hits=scan.dork_hits,
         started_at=scan.started_at,
         completed_at=scan.completed_at,
@@ -256,6 +261,46 @@ def scan_to_response(
         created_at=scan.created_at,
         asset_count=asset_count,
         cve_count=cve_count,
+        pentest_findings_count=pentest_findings_count,
         is_owner=is_owner,
         owner_username=owner_username,
     )
+
+
+async def get_pentest_results(
+    db: AsyncSession, scan_id: uuid.UUID, user_id: uuid.UUID
+) -> PentestResultsResponse:
+    scan, is_owner, owner_username = await get_accessible_scan_or_404(db, scan_id, user_id)
+
+    findings_result = await db.execute(
+        select(PentestFinding)
+        .where(PentestFinding.scan_id == scan_id)
+        .order_by(PentestFinding.created_at)
+    )
+    findings = list(findings_result.scalars().all())
+
+    scan_resp = scan_to_response(
+        scan,
+        pentest_findings_count=len(findings),
+        is_owner=is_owner,
+        owner_username=None if is_owner else owner_username,
+    )
+
+    finding_schemas = [
+        PentestFindingSchema(
+            id=str(f.id),
+            scan_id=str(f.scan_id),
+            title=f.title,
+            severity=f.severity,
+            cvss_score=float(f.cvss_score) if f.cvss_score is not None else None,
+            cve_ids=list(f.cve_ids),
+            affected_endpoint=f.affected_endpoint,
+            description=f.description,
+            reproduction_steps=f.reproduction_steps,
+            patch_suggestion=f.patch_suggestion,
+            created_at=f.created_at,
+        )
+        for f in findings
+    ]
+
+    return PentestResultsResponse(scan=scan_resp, findings=finding_schemas)

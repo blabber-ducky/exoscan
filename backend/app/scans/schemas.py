@@ -15,6 +15,7 @@ _ALLOWED_BY_TYPE = {
     "passive": PASSIVE_MODULES,
     "active": ACTIVE_MODULES,
     "comprehensive": PASSIVE_MODULES | ACTIVE_MODULES,
+    "pentest": set(),  # Strix manages its own toolchain; no modules
 }
 
 # --- Target validation helpers ---
@@ -68,6 +69,26 @@ def _valid_port_ranges(ports_str: str) -> bool:
     return True
 
 
+# --- Strix config (pentest scan type) ---
+
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+class StrixConfig(BaseModel):
+    scan_mode: Literal["quick", "standard", "deep"] = "standard"
+    instructions: str | None = None
+    max_budget_usd: float = 10.0
+
+    @model_validator(mode="after")
+    def _validate(self) -> "StrixConfig":
+        if not (0.01 <= self.max_budget_usd <= 100.0):
+            raise ValueError("max_budget_usd must be between 0.01 and 100.00")
+        if self.instructions is not None:
+            cleaned = _CONTROL_CHAR_RE.sub(" ", self.instructions).strip()[:500]
+            self.instructions = cleaned or None
+        return self
+
+
 # --- Nested config ---
 
 class PortConfig(BaseModel):
@@ -94,9 +115,11 @@ class PortConfig(BaseModel):
 
 class CreateScanRequest(BaseModel):
     target: str
-    scan_type: Literal["passive", "active", "comprehensive"]
-    modules: list[str]
+    scan_type: Literal["passive", "active", "comprehensive", "pentest"]
+    modules: list[str] = []
     port_config: PortConfig = PortConfig()
+    strix_config: StrixConfig | None = None
+    parent_scan_id: str | None = None
 
     @field_validator("target")
     @classmethod
@@ -105,16 +128,28 @@ class CreateScanRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_target_and_modules(self) -> "CreateScanRequest":
-        # Validate target format for scan type
+        if self.scan_type == "pentest":
+            # Pentest accepts domain, URL, or IPv4
+            if not (_is_domain(self.target) or _is_url(self.target) or _is_ipv4(self.target)):
+                raise ValueError(
+                    "AI Pentest requires a domain (example.com), URL (https://...), or IPv4 address"
+                )
+            if self.modules:
+                raise ValueError(
+                    "AI Pentest does not accept modules — Strix determines its own approach"
+                )
+            return self
+
+        # Validate target format for recon scan types
         if self.scan_type == "active":
             if not (_is_url(self.target) or _is_ipv4(self.target)):
                 raise ValueError(
-                    "Active scans require a full URL (https://...) or an IPv4 address"
+                    "Active recon requires a full URL (https://...) or an IPv4 address"
                 )
         else:
             if not (_is_domain(self.target) or _is_ipv4(self.target)):
                 raise ValueError(
-                    "Passive/comprehensive scans require a domain name or IPv4 address"
+                    "Passive/comprehensive recon requires a domain name or IPv4 address"
                 )
 
         # Validate modules are non-empty and valid for scan type
@@ -125,7 +160,7 @@ class CreateScanRequest(BaseModel):
         invalid = set(self.modules) - allowed
         if invalid:
             raise ValueError(
-                f"Module(s) not valid for {self.scan_type} scans: {', '.join(sorted(invalid))}"
+                f"Module(s) not valid for {self.scan_type} recon: {', '.join(sorted(invalid))}"
             )
 
         # cve_detection requires tech_fingerprinting
@@ -193,6 +228,27 @@ class AssetResponse(BaseModel):
     created_at: datetime
 
 
+class PentestFindingSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    scan_id: str
+    title: str
+    severity: str
+    cvss_score: float | None
+    cve_ids: list[Any]
+    affected_endpoint: str | None
+    description: str
+    reproduction_steps: str | None
+    patch_suggestion: str | None
+    created_at: datetime
+
+
+class PentestResultsResponse(BaseModel):
+    scan: "ScanResponse"
+    findings: list[PentestFindingSchema] = []
+
+
 class ScanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -201,8 +257,10 @@ class ScanResponse(BaseModel):
     scan_type: str
     modules: list[str]
     port_config: dict
+    strix_config: dict = {}
     status: str
     completed_stages: list[str] = []
+    parent_scan_id: str | None = None
     dork_hits: list[Any]
     started_at: datetime | None
     completed_at: datetime | None
@@ -210,6 +268,7 @@ class ScanResponse(BaseModel):
     created_at: datetime
     asset_count: int = 0
     cve_count: int = 0
+    pentest_findings_count: int = 0
     is_owner: bool = True
     owner_username: str | None = None
 

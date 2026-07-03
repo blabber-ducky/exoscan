@@ -60,12 +60,38 @@ export interface ScanShare {
 
 export type ScanStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
 
-export type ScanType = 'passive' | 'active' | 'comprehensive'
+export type ScanType = 'passive' | 'active' | 'comprehensive' | 'pentest'
 
 export const SCAN_TYPE_LABELS: Record<ScanType, string> = {
   passive: 'Passive Recon',
   active: 'Active Recon',
   comprehensive: 'Comprehensive Recon',
+  pentest: 'Comprehensive Security Test',
+}
+
+export interface StrixConfig {
+  scan_mode: 'quick' | 'standard' | 'deep'
+  instructions?: string
+  max_budget_usd: number
+}
+
+export interface PentestFinding {
+  id: string
+  scan_id: string
+  title: string
+  severity: 'INFORMATIONAL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  cvss_score: number | null
+  cve_ids: string[]
+  affected_endpoint: string | null
+  description: string
+  reproduction_steps: string | null
+  patch_suggestion: string | null
+  created_at: string
+}
+
+export interface PentestResults {
+  scan: Scan
+  findings: PentestFinding[]
 }
 
 export interface Scan {
@@ -74,8 +100,10 @@ export interface Scan {
   scan_type: ScanType
   modules: string[]
   port_config: PortConfig
+  strix_config: StrixConfig | Record<string, never>
   status: ScanStatus
   completed_stages: string[]
+  parent_scan_id: string | null
   dork_hits: DorkHit[]
   started_at: string | null
   completed_at: string | null
@@ -83,6 +111,7 @@ export interface Scan {
   created_at: string
   asset_count: number
   cve_count: number
+  pentest_findings_count: number
   is_owner: boolean
   owner_username: string | null
 }
@@ -176,6 +205,8 @@ export interface CreateScanPayload {
   scan_type: ScanType
   modules: string[]
   port_config: PortConfig
+  strix_config?: StrixConfig
+  parent_scan_id?: string
 }
 
 export interface FollowupActivePayload {
@@ -192,6 +223,44 @@ export interface FollowupActiveScanItem {
 export interface FollowupActiveResult {
   created_scans: FollowupActiveScanItem[]
   skipped: number
+}
+
+export const LLM_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI', placeholder: 'gpt-4o' },
+  { value: 'anthropic', label: 'Anthropic', placeholder: 'claude-sonnet-4-6' },
+  { value: 'google', label: 'Google Vertex AI', placeholder: 'gemini-1.5-pro' },
+  { value: 'aws_bedrock', label: 'AWS Bedrock', placeholder: 'anthropic.claude-3-5-sonnet-20241022-v2:0' },
+  { value: 'azure', label: 'Azure OpenAI', placeholder: 'gpt-4o' },
+  { value: 'openrouter', label: 'OpenRouter', placeholder: 'openai/gpt-4o' },
+  { value: 'ollama', label: 'Ollama / Local', placeholder: 'llama3.1' },
+] as const
+
+export interface UserSettings {
+  llm_provider: string
+  llm_model: string
+  llm_api_key_set: boolean
+  llm_api_key_masked: string | null
+  perplexity_api_key_set: boolean
+  perplexity_api_key_masked: string | null
+  strix_telemetry: boolean
+  strix_default_scan_mode: 'quick' | 'standard' | 'deep'
+  strix_default_max_budget_usd: number
+  updated_at: string
+}
+
+export interface UserSettingsRequest {
+  llm_provider?: string
+  llm_model?: string
+  llm_api_key?: string
+  perplexity_api_key?: string
+  strix_telemetry?: boolean
+  strix_default_scan_mode?: 'quick' | 'standard' | 'deep'
+  strix_default_max_budget_usd?: number
+}
+
+export interface TestConnectionResult {
+  ok: boolean
+  error: string | null
 }
 
 export interface WsLogLine {

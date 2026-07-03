@@ -6,6 +6,9 @@ const STAGES: { key: string; label: string; types: Scan['scan_type'][] }[] = [
   { key: 'probe', label: 'Liveness Probe', types: ['active', 'comprehensive'] },
   { key: 'active', label: 'Active Recon', types: ['active', 'comprehensive'] },
   { key: 'suggestions', label: 'Suggestions', types: ['active', 'comprehensive'] },
+  { key: 'preparing', label: 'Preparing', types: ['pentest'] },
+  { key: 'ai_pentest', label: 'AI Pentest', types: ['pentest'] },
+  { key: 'parsing', label: 'Parsing Findings', types: ['pentest'] },
 ]
 
 function stageState(

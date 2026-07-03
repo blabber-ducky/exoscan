@@ -35,10 +35,12 @@ services:
       NUCLEI_TEMPLATES_VOLUME: exoscan_nuclei_templates_vol
       SCREENSHOTS_VOLUME: exoscan_screenshots_vol
       DOCKER_NETWORK: exoscan_net
+      PENTEST_RESULTS_PATH: /app/pentest_results
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - screenshots_vol:/app/static/screenshots
       - nuclei_templates_vol:/nuclei-templates
+      - pentest_results_vol:/app/pentest_results
     ports:
       - "8000:8000"
     networks:
@@ -62,6 +64,8 @@ volumes:
     name: exoscan_screenshots_vol
   nuclei_templates_vol:
     name: exoscan_nuclei_templates_vol
+  pentest_results_vol:
+    name: exoscan_pentest_results_vol
 
 networks:
   exoscan_net:

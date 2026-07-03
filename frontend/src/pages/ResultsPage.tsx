@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Shield, AlertTriangle, Globe, Zap } from 'lucide-react'
+import { ArrowLeft, Shield, AlertTriangle, Globe, Zap, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { ScanStatusBadge } from '@/components/scans/ScanStatusBadge'
 import { PassiveReconPanel } from '@/components/results/PassiveReconPanel'
 import { AssetGrid } from '@/components/results/AssetGrid'
+import { PentestResultsPanel } from '@/components/results/PentestResultsPanel'
 import { ActiveFollowupDialog } from '@/components/scans/ActiveFollowupDialog'
 import { useScanResults } from '@/hooks/useScanResults'
 import { SCAN_TYPE_LABELS } from '@/types'
@@ -26,8 +26,9 @@ export function ResultsPage() {
   }
 
   const { scan, assets } = data
-  const isPassive = scan.scan_type === 'passive' || scan.scan_type === 'comprehensive'
-  const isActive = scan.scan_type === 'active' || scan.scan_type === 'comprehensive'
+  const isPentest = scan.scan_type === 'pentest'
+  const isPassive = !isPentest && (scan.scan_type === 'passive' || scan.scan_type === 'comprehensive')
+  const isActive = !isPentest && (scan.scan_type === 'active' || scan.scan_type === 'comprehensive')
 
   // For passive panel: find main asset (matches the scan target hostname)
   const mainAsset =
@@ -40,6 +41,7 @@ export function ResultsPage() {
   const liveCount = assets.filter((a) => a.scan_status === 'live').length
 
   const canFollowup =
+    !isPentest &&
     scan.is_owner &&
     scan.status === 'completed' &&
     (scan.scan_type === 'passive' || scan.scan_type === 'comprehensive') &&
@@ -77,34 +79,66 @@ export function ResultsPage() {
       )}
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
+      {isPentest ? (
+        <div className="grid grid-cols-2 gap-3">
+          <Card>
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-semibold text-primary">{scan.pentest_findings_count}</div>
+              <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                <ShieldAlert className="h-3 w-3" /> Total Findings
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-semibold text-destructive">
+                {scan.status === 'completed' ? '↓' : '—'}
+              </div>
+              <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                <AlertTriangle className="h-3 w-3" /> See findings below
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-semibold text-primary">{assets.length}</div>
+              <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                <Globe className="h-3 w-3" /> Assets
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-semibold text-primary">{liveCount}</div>
+              <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                <Shield className="h-3 w-3" /> Live
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <div className={`text-2xl font-semibold ${totalCves > 0 ? 'text-destructive' : 'text-primary'}`}>
+                {totalCves}
+              </div>
+              <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
+                <AlertTriangle className="h-3 w-3" /> CVEs
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Pentest results panel */}
+      {isPentest && id && (
         <Card>
-          <CardContent className="p-3 text-center">
-            <div className="text-2xl font-semibold text-primary">{assets.length}</div>
-            <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-              <Globe className="h-3 w-3" /> Assets
-            </div>
+          <CardContent className="pt-6">
+            <PentestResultsPanel scanId={id} />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <div className="text-2xl font-semibold text-primary">{liveCount}</div>
-            <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-              <Shield className="h-3 w-3" /> Live
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <div className={`text-2xl font-semibold ${totalCves > 0 ? 'text-destructive' : 'text-primary'}`}>
-              {totalCves}
-            </div>
-            <div className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-0.5">
-              <AlertTriangle className="h-3 w-3" /> CVEs
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
 
       {/* Passive recon panel */}
       {isPassive && (
@@ -133,7 +167,7 @@ export function ResultsPage() {
         </div>
       )}
 
-      {!isActive && assets.length > 0 && (
+      {!isActive && !isPentest && assets.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <h2 className="font-medium">Discovered Assets</h2>

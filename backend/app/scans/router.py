@@ -23,6 +23,7 @@ from app.scans.schemas import (
     GroupSummarySchema,
     PagedScansResponse,
     PatchScanRequest,
+    PentestResultsResponse,
     ScanResponse,
     ScanResultsResponse,
     ScanShareResponse,
@@ -52,6 +53,8 @@ async def create_scan(
         scan_type=body.scan_type,
         modules=body.modules,
         port_config=body.port_config.model_dump(),
+        strix_config=body.strix_config.model_dump() if body.strix_config else {},
+        parent_scan_id=uuid.UUID(body.parent_scan_id) if body.parent_scan_id else None,
         status="pending",
     )
     db.add(scan)
@@ -212,6 +215,15 @@ async def get_scan_results(
     db: AsyncSession = Depends(get_db),
 ):
     return await service.get_scan_results(db, scan_id, current_user.id)
+
+
+@router.get("/{scan_id}/pentest-results", response_model=PentestResultsResponse)
+async def get_pentest_results(
+    scan_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.get_pentest_results(db, scan_id, current_user.id)
 
 
 @router.post(

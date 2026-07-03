@@ -6,6 +6,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { ScanPage } from '@/pages/ScanPage'
 import { ResultsPage } from '@/pages/ResultsPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { useAuthStore } from '@/store/authStore'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'settings', element: <SettingsPage /> },
       { path: 'scans/:id', element: <ScanPage /> },
       { path: 'scans/:id/results', element: <ResultsPage /> },
       {

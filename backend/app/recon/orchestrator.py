@@ -61,7 +61,25 @@ async def run_scan(scan_id: str) -> None:
 
     log_fn = _make_log_fn(scan_id)
 
+    async with AsyncSessionLocal() as db:
+        scan_row = await db.get(Scan, uuid.UUID(scan_id))
+        strix_cfg: dict = getattr(scan_row, "strix_config", {}) or {}
+
     try:
+        if scan_type == "pentest":
+            await log_fn("INFO", "orchestrator", f"AI Pentest started — target={target}")
+            await _run_pentest_stage(scan_id, target, strix_cfg, log_fn)
+            await log_fn("INFO", "orchestrator", "AI Pentest completed successfully")
+            await log_bus.publish(scan_id, json.dumps({"type": "complete"}))
+
+            async with AsyncSessionLocal() as db:
+                scan = await db.get(Scan, uuid.UUID(scan_id))
+                if scan and scan.status == "running":
+                    scan.status = "completed"
+                    scan.completed_at = datetime.now(timezone.utc)
+                    await db.commit()
+            return
+
         if resuming:
             await log_fn(
                 "INFO", "orchestrator",
@@ -114,6 +132,66 @@ async def run_scan(scan_id: str) -> None:
                 scan.error_message = str(exc)
                 scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Stage 0: AI Pentest (Strix)
+# ---------------------------------------------------------------------------
+
+async def _run_pentest_stage(
+    scan_id: str,
+    target: str,
+    strix_cfg: dict,
+    log_fn: _LogFn,
+) -> None:
+    from app.settings.service import get_or_create, decrypt_key
+    from app.recon.pentest.strix import run_strix, parse_strix_output
+    import os
+
+    # Fetch user settings for LLM credentials
+    async with AsyncSessionLocal() as db:
+        scan_row = await db.get(Scan, uuid.UUID(scan_id))
+        if not scan_row:
+            raise RuntimeError("Scan not found")
+        user_id = scan_row.user_id
+        settings = await get_or_create(db, user_id)
+
+    if not settings.llm_api_key_encrypted:
+        raise RuntimeError(
+            "LLM API key not configured — visit Settings to add one before running AI Pentest"
+        )
+
+    llm_api_key = decrypt_key(settings.llm_api_key_encrypted)
+    perplexity_api_key: str | None = None
+    if settings.perplexity_api_key_encrypted:
+        perplexity_api_key = decrypt_key(settings.perplexity_api_key_encrypted)
+
+    pentest_results_path = os.environ.get("PENTEST_RESULTS_PATH", "/app/pentest_results")
+
+    await log_fn("INFO", "pentest", "Stage: AI Pentest — launching Strix")
+    run_dir = await run_strix(
+        scan_id=scan_id,
+        target=target,
+        strix_cfg=strix_cfg,
+        llm_provider=settings.llm_provider,
+        llm_model=settings.llm_model,
+        llm_api_key=llm_api_key,
+        perplexity_api_key=perplexity_api_key,
+        strix_telemetry=settings.strix_telemetry,
+        pentest_results_path=pentest_results_path,
+        log_fn=log_fn,
+    )
+
+    await log_fn("INFO", "pentest", "Parsing Strix output…")
+    findings = parse_strix_output(scan_id, run_dir)
+    if findings:
+        async with AsyncSessionLocal() as db:
+            for f in findings:
+                db.add(f)
+            await db.commit()
+        await log_fn("INFO", "pentest", f"Saved {len(findings)} finding(s)")
+    else:
+        await log_fn("INFO", "pentest", "No findings found in Strix output")
 
 
 # ---------------------------------------------------------------------------

@@ -238,91 +238,65 @@ docker compose up --build
 
 ---
 
-## Phase 16: LLM Provider Settings [ ]
+## Phase 16: LLM Provider Settings [x]
 
 User-scoped LLM configuration stored in the DB, encrypted at rest. Required before AI Pentest can run.
 
 **Data model (migration 006):**
-- [ ] `backend/alembic/versions/006_user_settings.py` — new `user_settings` table:
-  - `id UUID PK`, `user_id UUID FK UNIQUE`, `llm_provider VARCHAR(50) DEFAULT 'openai'`, `llm_model VARCHAR(100) DEFAULT 'gpt-4o'`, `llm_api_key_encrypted TEXT nullable`, `perplexity_api_key_encrypted TEXT nullable`, `strix_telemetry BOOL DEFAULT false`, `strix_default_scan_mode VARCHAR(20) DEFAULT 'standard' CHECK(quick/standard/deep)`, `strix_default_max_budget_usd NUMERIC(6,2) DEFAULT 10.00`, `created_at`, `updated_at`
+- [x] `backend/alembic/versions/006_user_settings.py` — new `user_settings` table
 
 **Backend:**
-- [ ] `backend/app/settings/models.py` — `UserSettings` ORM model mapped to `user_settings` table
-- [ ] `backend/app/settings/schemas.py` — `UserSettingsRequest` (all optional fields), `UserSettingsResponse` (llm_api_key and perplexity_api_key returned as masked string `sk-...****` if set, else null); `LLM_PROVIDERS` enum literal
-- [ ] `backend/app/settings/service.py` — `get_or_create_settings(db, user_id)`, `update_settings(db, user_id, req)`, `encrypt_key(value) → bytes`, `decrypt_key(blob) → str` — Fernet encryption using `SECRET_KEY` as master (SHA-256 derived to 32-byte Fernet key)
-- [ ] `backend/app/settings/router.py` — `GET /api/v1/settings` (returns current user's settings, API keys masked), `PUT /api/v1/settings` (upsert; validates provider/model not empty if api_key provided); `POST /api/v1/settings/test-connection` (spawns a trivial LLM call to verify key works — uses `litellm` installed in backend requirements)
-- [ ] `backend/app/main.py` — mount settings router at `/api/v1/settings`
-- [ ] `backend/requirements.txt` — add `cryptography` (Fernet), `litellm` (connection test)
+- [x] `backend/app/settings/models.py` — `UserSettings` ORM model
+- [x] `backend/app/settings/schemas.py` — `UserSettingsRequest`, `UserSettingsResponse`, `LLM_PROVIDERS`
+- [x] `backend/app/settings/service.py` — `get_or_create`, `upsert`, Fernet encrypt/decrypt
+- [x] `backend/app/settings/router.py` — GET/PUT settings, POST test-connection
+- [x] `backend/app/main.py` — settings router mounted
+- [x] `backend/requirements.txt` — `cryptography==43.0.3`, `litellm==1.55.8`
 
 **Frontend:**
-- [ ] `frontend/src/types/index.ts` — `UserSettings` interface, `LLM_PROVIDERS` constant (openai/anthropic/google/aws_bedrock/azure/openrouter/ollama)
-- [ ] `frontend/src/api/settings.ts` — `getSettings()`, `updateSettings(req)`, `testConnection()`
-- [ ] `frontend/src/hooks/useSettings.ts` — `useSettings` (query), `useUpdateSettings` (mutation → invalidates), `useTestConnection` (mutation → toast)
-- [ ] `frontend/src/pages/SettingsPage.tsx` — provider dropdown (labelled list: OpenAI / Anthropic / Google Vertex AI / AWS Bedrock / Azure OpenAI / OpenRouter / Ollama); model text input with per-provider placeholder; API key password input (shows masked value if set, clears to re-enter); Perplexity API key (optional, for OSINT in strix); Telemetry toggle; Default scan mode radio (Quick/Standard/Deep); Default budget cap number input; "Save Settings" button; "Test Connection" button (shows spinner then success/error toast)
-- [ ] `frontend/src/components/layout/Navbar.tsx` — Settings link (gear icon) next to logout; visible to all authenticated users
-- [ ] `frontend/src/router.tsx` — `/settings` route inside Layout
+- [x] `frontend/src/types/index.ts` — `UserSettings`, `LLM_PROVIDERS`
+- [x] `frontend/src/api/settings.ts`
+- [x] `frontend/src/hooks/useSettings.ts`
+- [x] `frontend/src/pages/SettingsPage.tsx`
+- [x] `frontend/src/components/layout/Navbar.tsx` — Settings link added
+- [x] `frontend/src/router.tsx` — `/settings` route added
 
 ---
 
-## Phase 17: Strix AI Pentest Integration [ ]
+## Phase 17: Strix AI Pentest Integration [x]
 
-Integrates [Strix](https://github.com/usestrix/strix) as a new recon type. Strix is an AI-powered multi-agent pentesting platform that uses LiteLLM (OpenAI / Anthropic / Google / etc.) to autonomously discover and validate vulnerabilities. Users trigger it from a completed passive or comprehensive recon result.
+Two-track UX: Recon (passive/active with tooltips) or Comprehensive Security Test (Strix). Results at `/results/:id` for all scan types.
 
-**Architecture notes:**
-- Strix is installed via `pip install strix-agent` and invoked as a subprocess (or in a dedicated runner container)
-- The runner container is a slim Python image (`python:3.12-slim`) with Docker socket mounted — strix spawns its own sandbox containers (`ghcr.io/usestrix/strix-sandbox:1.0.0`) on the host via the socket
-- Strix output: `strix_runs/<run-name>/` directory containing `vulnerabilities.json` with findings (CVSS, reproduction steps, patches)
-- Strix is always called with `--non-interactive` for unattended operation
-- LLM config comes from the calling user's `user_settings` row (decrypted per-request)
-- `--max-budget-usd` cap enforced to prevent runaway costs
-- A `parent_scan_id` FK links each pentest scan back to the source passive/comprehensive recon
-
-**Data model (migrations 007, 008):**
-- [ ] `backend/alembic/versions/007_scan_type_pentest.py` — two changes:
-  1. Drop and recreate `chk_scan_type` constraint to add `'pentest'`
-  2. Add `parent_scan_id UUID nullable FK → scans(id) ON DELETE SET NULL` column to `scans`
-- [ ] `backend/alembic/versions/008_pentest_findings.py` — new `pentest_findings` table:
-  - `id UUID PK`, `scan_id UUID FK NOT NULL`, `title VARCHAR(500)`, `severity CHECK(INFORMATIONAL/LOW/MEDIUM/HIGH/CRITICAL)`, `cvss_score NUMERIC(4,1) nullable`, `cve_ids JSONB DEFAULT '[]'`, `affected_endpoint VARCHAR(1000) nullable`, `description TEXT`, `reproduction_steps TEXT nullable`, `patch_suggestion TEXT nullable`, `raw_output JSONB DEFAULT '{}'`, `created_at TIMESTAMPTZ`
-  - Index: `(scan_id, severity)`
+**Data model:**
+- [x] `backend/alembic/versions/007_pentest_scan_type.py` — adds `pentest` to `chk_scan_type`; adds `parent_scan_id` + `strix_config` columns to `scans`
+- [x] `backend/alembic/versions/008_pentest_findings.py` — new `pentest_findings` table with severity CHECK
 
 **Backend:**
-- [ ] `backend/app/scans/models.py` — `parent_scan_id: Mapped[UUID | None]` + `PentestFinding` ORM model
-- [ ] `backend/app/scans/schemas.py` — extend `CreateScanRequest` to accept `scan_type="pentest"`; add `pentest_config: PentestConfig | None` (scan_mode, instructions, max_budget_usd, asset_ids from parent scan); `PentestFindingResponse`; `PentestResultsResponse`; `parent_scan_id` in `ScanResponse`
-- [ ] `backend/app/scans/service.py` — `get_pentest_results(db, scan_id, user_id)` — returns `PentestResultsResponse` with findings sorted by severity
-- [ ] `backend/app/scans/router.py` — `GET /api/v1/scans/{id}/pentest-results` endpoint (auth: owner or shared viewer)
-- [ ] `backend/app/recon/pentest/__init__.py` + `strix.py`:
-  - `run_strix(scan_id, targets, strix_cfg, llm_settings, log_fn)` — pulls `python:3.12-slim`; runs `pip install strix-agent -q && strix -t {t1} -t {t2} ... --non-interactive --scan-mode {mode} [--instruction {inst}] [--max-budget-usd {budget}]`; mounts `/var/run/docker.sock` + `pentest_results_vol:/strix_runs`; streams stdout to log bus; `timeout_seconds=7200` (2h for deep scans)
-  - `parse_strix_output(scan_id, run_dir, db)` — reads `vulnerabilities.json` from mounted volume path; maps Strix severity → our CHECK values; writes `pentest_findings` rows
-  - **All target values passed through `shlex.quote()`**; instructions sanitised (alphanumeric + punctuation only, 500 char max)
-- [ ] `backend/app/recon/orchestrator.py` — new branch for `scan_type == "pentest"`: fetch user settings (decrypt LLM key), validate LLM settings present, run `_run_pentest_stage()` (calls `run_strix()`), parse results, set `completed` or `failed`
-- [ ] `docker-compose.yml` — new named volume `pentest_results_vol`; mount in backend at `/app/pentest_results`
-- [ ] `backend/requirements.txt` — no new deps (strix installed at runtime in runner container)
-- [ ] `.env.example` — document `PENTEST_RESULTS_PATH=/app/pentest_results`
+- [x] `backend/app/scans/models.py` — `parent_scan_id`, `strix_config` on `Scan`; new `PentestFinding` ORM
+- [x] `backend/app/scans/schemas.py` — `StrixConfig`, `pentest` in `CreateScanRequest`, `PentestFindingSchema`, `PentestResultsResponse`; `pentest_findings_count` + `strix_config` + `parent_scan_id` in `ScanResponse`
+- [x] `backend/app/scans/service.py` — `get_pentest_results()`; `scan_to_response` extended
+- [x] `backend/app/scans/router.py` — `GET /api/v1/scans/{id}/pentest-results`; create_scan persists strix_config + parent_scan_id
+- [x] `backend/app/recon/pentest/__init__.py` + `strix.py` — `run_strix()` (run_in_executor, 2h timeout, shlex.quote, no-telemetry flag), `parse_strix_output()` (reads vulnerabilities.json)
+- [x] `backend/app/recon/orchestrator.py` — `pentest` branch: fetch user settings, decrypt LLM key, call `_run_pentest_stage()`
+- [x] `docker-compose.yml` — `pentest_results_vol` volume + backend mount
+- [x] `.env.example` — `PENTEST_RESULTS_PATH=/app/pentest_results`
 
 **Frontend:**
-- [ ] `frontend/src/types/index.ts` — extend `ScanType` to include `'pentest'`; add `'AI Pentest'` to `SCAN_TYPE_LABELS`; `PentestFinding`, `PentestResultsResponse` interfaces; extend `Scan` with `parent_scan_id?: string`
-- [ ] `frontend/src/api/scans.ts` — `getPentestResults(scanId)` function
-- [ ] `frontend/src/hooks/useScans.ts` — `usePentestResults(scanId)` query
-- [ ] `frontend/src/components/scans/NewScanForm.tsx` — "AI Pentest" radio card in step 1 (shows warning icon if LLM not configured; links to Settings); step 3 for pentest shows: scan mode radio (Quick ~5min / Standard ~30-60min / Deep ~1-4hr), instructions textarea (optional, max 500 chars), budget cap number input; step 4 (port config) hidden for pentest type
-- [ ] `frontend/src/components/scans/ScanProgress.tsx` — pentest stages: `preparing` → `ai_pentest` → `parsing`
-- [ ] `frontend/src/pages/ResultsPage.tsx` — "Run AI Pentest" button (passive/comprehensive + completed + is_owner); `PentestDialog` integration
-- [ ] `frontend/src/components/scans/PentestDialog.tsx` — triggered from ResultsPage; asset multi-select (same pattern as ActiveFollowupDialog but filtered to live assets only by default); scan mode / instructions / budget fields; shows warning if LLM not configured (link to /settings); cost estimate note per scan mode; creates a `pentest` type scan via `POST /api/v1/scans` with `parent_scan_id`
-- [ ] `frontend/src/pages/PentestResultsPage.tsx` — route `/results/:id/pentest`; fetches `GET /api/v1/scans/{id}/pentest-results`; severity filter chips (Critical/High/Medium/Low/Info); findings list with expandable cards: title, severity badge, CVSS, affected endpoint, description, reproduction steps accordion, patch suggestion, raw output toggle; "N vulnerabilities found" summary header
-- [ ] `frontend/src/components/results/PentestFindingCard.tsx` — single finding card component
-- [ ] `frontend/src/router.tsx` — `/results/:id/pentest` route
-- [ ] `frontend/src/components/scans/ScanCard.tsx` — pentest type card: shows parent recon target, links to `/results/:id/pentest` instead of `/results/:id`; finding count (from `pentest_findings_count` in ScanResponse)
-- [ ] `frontend/src/components/scans/ScanStatusBadge.tsx` — no change needed (pentest uses same status values)
+- [x] `frontend/src/types/index.ts` — `pentest` in `ScanType`; `StrixConfig`, `PentestFinding`, `PentestResults`; `CreateScanPayload` extended
+- [x] `frontend/src/api/scans.ts` — `pentestResults(id)`
+- [x] `frontend/src/hooks/useScans.ts` — `usePentestResults(id)`
+- [x] `frontend/src/components/scans/NewScanForm.tsx` — two-track UX: Mode → Recon sub-type / Pentest target → Target / AI Config → Modules → Port Config
+- [x] `frontend/src/components/scans/ScanProgress.tsx` — pentest stages added
+- [x] `frontend/src/pages/ResultsPage.tsx` — `isPentest` branch: `PentestResultsPanel`, pentest stats row, no followup button
+- [x] `frontend/src/components/results/PentestResultsPanel.tsx` — severity filter chips + findings list
+- [x] `frontend/src/components/results/PentestFindingCard.tsx` — collapsible repro steps + patch suggestion
+- [x] `frontend/src/components/ui/textarea.tsx` — new shadcn-compatible textarea
 
-**Security:**
-- [ ] Strix `--instruction` content sanitised: strip control chars, max 500 chars, passed via `shlex.quote()`
-- [ ] LLM API key decrypted in-memory only, never logged, never returned in API responses
-- [ ] Pentest runner container inherits Docker socket risk (same as existing backend) — documented
-- [ ] `--non-interactive` mandatory (prevents strix from blocking on stdin)
-- [ ] `--max-budget-usd` always set (defaults to user setting, max 100 enforced server-side)
-
-**Test additions (`exoscan-testing/test_runner.py`):**
-- [ ] `run_settings_tests()` — GET settings returns defaults; PUT updates llm_provider/model; PUT with api_key stores (returned masked); test-connection with no key → 400
-- [ ] `run_pentest_tests()` — POST pentest scan without LLM config → 400; POST pentest scan with mocked settings → 201 (skip actual strix execution in tests)
+**Security (all enforced):**
+- [x] Strix `--instruction` sanitised: control chars stripped, max 500 chars, `shlex.quote()`
+- [x] LLM API key decrypted in-process only, never logged, never returned in API responses
+- [x] `--non-interactive` mandatory
+- [x] `--max-budget-usd` always set, server-side cap 100 USD
 
 ---
 

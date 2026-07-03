@@ -38,6 +38,14 @@ class Scan(Base):
     completed_stages: Mapped[list] = mapped_column(
         JSONB, server_default="'[]'::jsonb", nullable=False
     )
+    parent_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    strix_config: Mapped[dict] = mapped_column(
+        JSONB, server_default="'{}'::jsonb", nullable=False
+    )
     dork_hits: Mapped[list] = mapped_column(
         JSONB, server_default="'[]'::jsonb", nullable=False
     )
@@ -205,6 +213,35 @@ class SuggestedScan(Base):
         TIMESTAMP(timezone=True), nullable=True
     )
     result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PentestFinding(Base):
+    __tablename__ = "pentest_findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    cvss_score: Mapped[Numeric | None] = mapped_column(Numeric(4, 1), nullable=True)
+    cve_ids: Mapped[list] = mapped_column(
+        JSONB, server_default="'[]'::jsonb", nullable=False
+    )
+    affected_endpoint: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    reproduction_steps: Mapped[str | None] = mapped_column(Text, nullable=True)
+    patch_suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_output: Mapped[dict] = mapped_column(
+        JSONB, server_default="'{}'::jsonb", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )

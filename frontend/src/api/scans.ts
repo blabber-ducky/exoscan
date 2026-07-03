@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { CreateScanPayload, FollowupActivePayload, FollowupActiveResult, PagedScans, PortConfig, Scan, ScanResults } from '@/types'
+import type { CreateScanPayload, FollowupActivePayload, FollowupActiveResult, PagedScans, PentestResults, PortConfig, Scan, ScanResults } from '@/types'
 
 export const scansApi = {
   create: (payload: CreateScanPayload) =>
@@ -38,4 +38,7 @@ export const scansApi = {
 
   patch: (id: string, payload: { modules?: string[]; port_config?: PortConfig }) =>
     api.patch<Scan>(`/scans/${id}`, payload).then((r) => r.data),
+
+  pentestResults: (id: string) =>
+    api.get<PentestResults>(`/scans/${id}/pentest-results`).then((r) => r.data),
 }
