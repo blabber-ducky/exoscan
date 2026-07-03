@@ -127,7 +127,7 @@ async def cancel_scan(
     if scan.status not in ("pending", "running", "paused"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot cancel a scan with status '{scan.status}'",
+            detail=f"Cannot cancel a recon with status '{scan.status}'",
         )
     scan.status = "cancelled"
     scan.completed_at = datetime.now(timezone.utc)
@@ -146,7 +146,7 @@ async def pause_scan(
     if scan.status != "running":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only running scans can be paused",
+            detail="Only running recons can be paused",
         )
     scan.status = "paused"
     await db.commit()
@@ -164,7 +164,7 @@ async def resume_scan(
     if scan.status != "paused":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only paused scans can be resumed",
+            detail="Only paused recons can be resumed",
         )
     scan.status = "running"
     await db.commit()
@@ -184,7 +184,7 @@ async def patch_scan(
     if scan.status not in ("pending", "paused"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only pending or paused scans can be modified",
+            detail="Only pending or paused recons can be modified",
         )
 
     from app.scans.schemas import ACTIVE_MODULES, PASSIVE_MODULES, _ALLOWED_BY_TYPE
@@ -194,7 +194,7 @@ async def patch_scan(
         if invalid:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Module(s) not valid for {scan.scan_type} scans: {', '.join(sorted(invalid))}",
+                detail=f"Module(s) not valid for {scan.scan_type} recon: {', '.join(sorted(invalid))}",
             )
         scan.modules = body.modules
     if body.port_config is not None:
@@ -230,12 +230,12 @@ async def followup_active_scan(
     if source.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Source scan must be completed before initiating a follow-up",
+            detail="Source recon must be completed before initiating a follow-up",
         )
     if source.scan_type not in ("passive", "comprehensive"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Follow-up active scan can only be initiated from a passive or comprehensive scan",
+            detail="Follow-up active recon can only be initiated from a passive or comprehensive recon",
         )
 
     stmt = select(ScanAsset).where(ScanAsset.scan_id == scan_id)
@@ -500,7 +500,7 @@ async def trigger_suggested_scan(
     return TriggerSuggestedResponse(
         suggested_scan_id=str(suggested_id),
         status="running",
-        message="Scan triggered — results will appear in result_summary when complete",
+        message="Recon triggered — results will appear in result_summary when complete",
     )
 
 

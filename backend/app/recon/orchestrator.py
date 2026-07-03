@@ -65,13 +65,13 @@ async def run_scan(scan_id: str) -> None:
         if resuming:
             await log_fn(
                 "INFO", "orchestrator",
-                f"Scan resumed — completed={sorted(completed)}, "
+                f"Recon resumed — completed={sorted(completed)}, "
                 f"type={scan_type}, target={target}",
             )
         else:
             await log_fn(
                 "INFO", "orchestrator",
-                f"Scan started — type={scan_type}, target={target}, "
+                f"Recon started — type={scan_type}, target={target}, "
                 f"modules=[{', '.join(sorted(modules))}]",
             )
 
@@ -94,7 +94,7 @@ async def run_scan(scan_id: str) -> None:
             await _run_active_stage(scan_id, modules, port_config, log_fn)
             await _mark_stage(scan_id, "active")
 
-        await log_fn("INFO", "orchestrator", "Scan completed successfully")
+        await log_fn("INFO", "orchestrator", "Recon completed successfully")
         await log_bus.publish(scan_id, json.dumps({"type": "complete"}))
 
         async with AsyncSessionLocal() as db:
@@ -105,7 +105,7 @@ async def run_scan(scan_id: str) -> None:
                 await db.commit()
 
     except Exception as exc:
-        await log_fn("ERROR", "orchestrator", f"Scan failed: {exc}")
+        await log_fn("ERROR", "orchestrator", f"Recon failed: {exc}")
         await log_bus.publish(scan_id, json.dumps({"type": "error", "message": str(exc)}))
         async with AsyncSessionLocal() as db:
             scan = await db.get(Scan, uuid.UUID(scan_id))
@@ -143,12 +143,12 @@ async def _is_stopped(scan_id: str, log_fn: _LogFn) -> bool:
         if not scan:
             return True
         if scan.status == "paused":
-            await log_fn("INFO", "orchestrator", "Scan paused — will resume from next stage")
+            await log_fn("INFO", "orchestrator", "Recon paused — will resume from next stage")
             return True
         if scan.status == "cancelled":
             scan.completed_at = datetime.now(timezone.utc)
             await db.commit()
-            await log_fn("INFO", "orchestrator", "Scan cancelled")
+            await log_fn("INFO", "orchestrator", "Recon cancelled")
             return True
     return False
 

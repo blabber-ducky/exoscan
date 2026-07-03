@@ -222,6 +222,22 @@ docker compose up --build
 
 ---
 
+## Phase 15: Rename scan → recon (UI terminology) [x]
+
+- [x] `frontend/src/types/index.ts` — exported `ScanType` type + `SCAN_TYPE_LABELS` map (`passive`→`Passive Recon`, `active`→`Active Recon`, `comprehensive`→`Comprehensive Recon`); DB enum values unchanged
+- [x] `frontend/src/components/scans/NewScanForm.tsx` — step label "Recon Type", radio cards "Passive/Active/Comprehensive Recon", validation messages use "recon", submit button "Launch Recon"
+- [x] `frontend/src/components/scans/ScanCard.tsx` — uses `SCAN_TYPE_LABELS[scan.scan_type]` instead of `capitalize(scan.scan_type)`
+- [x] `frontend/src/pages/ScanPage.tsx` — `SCAN_TYPE_LABELS` for type display; toast messages updated to "recon"
+- [x] `frontend/src/pages/ResultsPage.tsx` — `SCAN_TYPE_LABELS` for type display; "Active Recon Assets" button
+- [x] `frontend/src/pages/DashboardPage.tsx` — "Recon History" heading, "New Recon" button, "No recons yet" empty state
+- [x] `frontend/src/components/scans/EditScanDialog.tsx` — title "Edit Recon", toasts updated to "recon"
+- [x] `frontend/src/components/scans/AssetScanDialog.tsx` — title "Active Recon", toast updated
+- [x] `frontend/src/components/scans/ActiveFollowupDialog.tsx` — title "Run Active Recon on Discovered Assets", toasts + button text updated
+- [x] `backend/app/recon/orchestrator.py` — log messages: "Recon started/resumed/completed/failed/paused/cancelled"
+- [x] `backend/app/scans/router.py` — all HTTP error `detail` strings updated to "recon" terminology
+
+---
+
 ## Phase 14: Sharing & Groups [x]
 
 **Data model (migration 003):**

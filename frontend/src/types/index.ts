@@ -60,10 +60,18 @@ export interface ScanShare {
 
 export type ScanStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
 
+export type ScanType = 'passive' | 'active' | 'comprehensive'
+
+export const SCAN_TYPE_LABELS: Record<ScanType, string> = {
+  passive: 'Passive Recon',
+  active: 'Active Recon',
+  comprehensive: 'Comprehensive Recon',
+}
+
 export interface Scan {
   id: string
   target: string
-  scan_type: 'passive' | 'active' | 'comprehensive'
+  scan_type: ScanType
   modules: string[]
   port_config: PortConfig
   status: ScanStatus
@@ -165,7 +173,7 @@ export interface PagedScans {
 
 export interface CreateScanPayload {
   target: string
-  scan_type: 'passive' | 'active' | 'comprehensive'
+  scan_type: ScanType
   modules: string[]
   port_config: PortConfig
 }

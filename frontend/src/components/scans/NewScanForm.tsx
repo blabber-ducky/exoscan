@@ -11,8 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCreateScan } from '@/hooks/useScans'
 import { cn } from '@/lib/utils'
-
-type ScanType = 'passive' | 'active' | 'comprehensive'
+import type { ScanType } from '@/types'
 type PortPreset = 'top100' | 'top1000' | 'http_only' | 'custom'
 
 const PASSIVE_MODULES = [
@@ -82,8 +81,8 @@ export function NewScanForm({ onClose }: { onClose?: () => void }) {
     if (!isValidTarget(target.trim(), scanType)) {
       setTargetError(
         scanType === 'active'
-          ? 'Active scans require a full URL (https://...) or IPv4'
-          : 'Passive/comprehensive scans require a domain or IPv4'
+          ? 'Active recon requires a full URL (https://...) or IPv4'
+          : 'Passive/comprehensive recon requires a domain or IPv4'
       )
       return false
     }
@@ -136,7 +135,7 @@ export function NewScanForm({ onClose }: { onClose?: () => void }) {
     )
   }
 
-  const steps = ['Scan Type', 'Target', 'Modules', ...(showPortConfig ? ['Port Config'] : [])]
+  const steps = ['Recon Type', 'Target', 'Modules', ...(showPortConfig ? ['Port Config'] : [])]
 
   return (
     <TooltipProvider>
@@ -163,13 +162,13 @@ export function NewScanForm({ onClose }: { onClose?: () => void }) {
 
         <Separator />
 
-        {/* Step 1 — Scan Type */}
+        {/* Step 1 — Recon Type */}
         {step === 1 && (
           <div className="grid gap-3">
             {[
-              { type: 'passive' as const, icon: Globe, label: 'Passive', desc: 'Discover assets without touching them. Input: domain or IP.' },
-              { type: 'active' as const, icon: Zap, label: 'Active', desc: 'Fingerprint a single known target. Input: full URL or IP.' },
-              { type: 'comprehensive' as const, icon: Layers, label: 'Comprehensive', desc: 'Discover all assets passively, then fingerprint each one actively.' },
+              { type: 'passive' as const, icon: Globe, label: 'Passive Recon', desc: 'Discover assets without touching them. Input: domain or IP.' },
+              { type: 'active' as const, icon: Zap, label: 'Active Recon', desc: 'Fingerprint a single known target. Input: full URL or IP.' },
+              { type: 'comprehensive' as const, icon: Layers, label: 'Comprehensive Recon', desc: 'Discover all assets passively, then fingerprint each one actively.' },
             ].map(({ type, icon: Icon, label, desc }) => (
               <button
                 key={type}
@@ -311,7 +310,7 @@ export function NewScanForm({ onClose }: { onClose?: () => void }) {
             onClick={step === steps.length ? handleSubmit : goNext}
             disabled={createScan.isPending}
           >
-            {createScan.isPending ? 'Launching…' : step === steps.length ? 'Launch Scan' : 'Next'}
+            {createScan.isPending ? 'Launching…' : step === steps.length ? 'Launch Recon' : 'Next'}
             {step < steps.length && <ChevronRight className="h-4 w-4" />}
           </Button>
         </div>

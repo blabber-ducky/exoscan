@@ -91,10 +91,10 @@ export function AssetScanDialog({ asset, open, onClose }: Props) {
       },
       {
         onSuccess: () => {
-          toast.success(`Active scan started for ${asset.hostname ?? target}`)
+          toast.success(`Active recon started for ${asset.hostname ?? target}`)
           onClose()
         },
-        onError: () => toast.error('Failed to start scan'),
+        onError: () => toast.error('Failed to start recon'),
       }
     )
   }
@@ -105,7 +105,7 @@ export function AssetScanDialog({ asset, open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            Active Scan — {asset.hostname ?? target}
+            Active Recon — {asset.hostname ?? target}
           </DialogTitle>
         </DialogHeader>
 

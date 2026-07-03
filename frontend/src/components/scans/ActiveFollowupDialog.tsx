@@ -144,7 +144,7 @@ export function ActiveFollowupDialog({ scanId, assets, open, onClose }: Props) {
       {
         onSuccess: (result) => {
           toast.success(
-            `${result.created_scans.length} active scan${result.created_scans.length !== 1 ? 's' : ''} started`,
+            `${result.created_scans.length} active recon${result.created_scans.length !== 1 ? 's' : ''} started`,
             {
               description:
                 result.skipped > 0
@@ -154,7 +154,7 @@ export function ActiveFollowupDialog({ scanId, assets, open, onClose }: Props) {
           )
           onClose()
         },
-        onError: () => toast.error('Failed to start follow-up scans'),
+        onError: () => toast.error('Failed to start follow-up recons'),
       }
     )
   }
@@ -165,7 +165,7 @@ export function ActiveFollowupDialog({ scanId, assets, open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            Run Active Scan on Discovered Assets
+            Run Active Recon on Discovered Assets
           </DialogTitle>
         </DialogHeader>
 
@@ -347,7 +347,7 @@ export function ActiveFollowupDialog({ scanId, assets, open, onClose }: Props) {
               {followup.isPending ? (
                 <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Starting…</>
               ) : (
-                `Start ${selectedIds.size} Scan${selectedIds.size !== 1 ? 's' : ''}`
+                `Start ${selectedIds.size} Recon${selectedIds.size !== 1 ? 's' : ''}`
               )}
             </Button>
           </div>

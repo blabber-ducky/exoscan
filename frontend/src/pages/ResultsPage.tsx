@@ -10,6 +10,7 @@ import { PassiveReconPanel } from '@/components/results/PassiveReconPanel'
 import { AssetGrid } from '@/components/results/AssetGrid'
 import { ActiveFollowupDialog } from '@/components/scans/ActiveFollowupDialog'
 import { useScanResults } from '@/hooks/useScanResults'
+import { SCAN_TYPE_LABELS } from '@/types'
 
 export function ResultsPage() {
   const { id } = useParams<{ id: string }>()
@@ -55,13 +56,13 @@ export function ResultsPage() {
           <div className="font-mono text-lg font-semibold truncate">{scan.target}</div>
           <div className="flex items-center gap-2 mt-1">
             <ScanStatusBadge status={scan.status} />
-            <span className="text-xs text-muted-foreground capitalize">{scan.scan_type}</span>
+            <span className="text-xs text-muted-foreground">{SCAN_TYPE_LABELS[scan.scan_type]}</span>
           </div>
         </div>
         {canFollowup && (
           <Button size="sm" onClick={() => setFollowupOpen(true)} className="shrink-0 gap-1.5">
             <Zap className="h-3.5 w-3.5" />
-            Active Scan Assets
+            Active Recon Assets
           </Button>
         )}
       </div>

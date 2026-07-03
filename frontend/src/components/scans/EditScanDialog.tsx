@@ -95,10 +95,10 @@ export function EditScanDialog({ scan, open, onClose }: Props) {
       { modules: [...modules], port_config: portConfig },
       {
         onSuccess: () => {
-          toast.success('Scan updated')
+          toast.success('Recon updated')
           onClose()
         },
-        onError: () => toast.error('Failed to update scan'),
+        onError: () => toast.error('Failed to update recon'),
       }
     )
   }
@@ -109,7 +109,7 @@ export function EditScanDialog({ scan, open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4" />
-            Edit Scan — {scan.target}
+            Edit Recon — {scan.target}
           </DialogTitle>
         </DialogHeader>
 

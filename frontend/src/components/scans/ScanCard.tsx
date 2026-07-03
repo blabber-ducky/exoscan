@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScanStatusBadge } from './ScanStatusBadge'
 import { ShareDialog } from './ShareDialog'
 import { useDeleteScan } from '@/hooks/useScans'
+import { SCAN_TYPE_LABELS } from '@/types'
 import type { Scan } from '@/types'
 
 const TYPE_ICON: Record<Scan['scan_type'], typeof Globe> = {
@@ -30,7 +31,7 @@ export function ScanCard({ scan }: { scan: Scan }) {
               <div className="font-mono text-sm truncate">{scan.target}</div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <ScanStatusBadge status={scan.status} />
-                <span className="text-xs text-muted-foreground capitalize">{scan.scan_type}</span>
+                <span className="text-xs text-muted-foreground">{SCAN_TYPE_LABELS[scan.scan_type]}</span>
                 {!scan.is_owner && scan.owner_username && (
                   <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                     <User className="h-3 w-3" />

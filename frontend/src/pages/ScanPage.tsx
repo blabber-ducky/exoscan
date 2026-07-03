@@ -10,6 +10,7 @@ import { LogViewer } from '@/components/scans/LogViewer'
 import { EditScanDialog } from '@/components/scans/EditScanDialog'
 import { useScan, useCancelScan, usePauseScan, useResumeScan } from '@/hooks/useScans'
 import { useScanLogs } from '@/hooks/useScanLogs'
+import { SCAN_TYPE_LABELS } from '@/types'
 
 export function ScanPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,24 +37,24 @@ export function ScanPage() {
   const handleCancel = () => {
     if (!id) return
     cancelScan.mutate(id, {
-      onSuccess: () => toast.info('Scan cancelled'),
-      onError: () => toast.error('Failed to cancel scan'),
+      onSuccess: () => toast.info('Recon cancelled'),
+      onError: () => toast.error('Failed to cancel recon'),
     })
   }
 
   const handlePause = () => {
     if (!id) return
     pauseScan.mutate(id, {
-      onSuccess: () => toast.success('Scan paused — will stop after current stage completes'),
-      onError: () => toast.error('Failed to pause scan'),
+      onSuccess: () => toast.success('Recon paused — will stop after current stage completes'),
+      onError: () => toast.error('Failed to pause recon'),
     })
   }
 
   const handleResume = () => {
     if (!id) return
     resumeScan.mutate(id, {
-      onSuccess: () => toast.success('Scan resumed'),
-      onError: () => toast.error('Failed to resume scan'),
+      onSuccess: () => toast.success('Recon resumed'),
+      onError: () => toast.error('Failed to resume recon'),
     })
   }
 
@@ -69,7 +70,7 @@ export function ScanPage() {
           <div className="font-mono text-sm truncate">{scan?.target}</div>
           <div className="flex items-center gap-2 mt-1">
             {scan && <ScanStatusBadge status={scan.status} />}
-            <span className="text-xs text-muted-foreground capitalize">{scan?.scan_type}</span>
+            {scan && <span className="text-xs text-muted-foreground">{SCAN_TYPE_LABELS[scan.scan_type]}</span>}
           </div>
         </div>
 
