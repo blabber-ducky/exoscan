@@ -21,23 +21,25 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Recon History</h1>
+          <h1 className="text-xl font-semibold">Scan History</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {data?.total ?? 0} recon{data?.total !== 1 ? 's' : ''} total
+            {data?.total ?? 0} scan{data?.total !== 1 ? 's' : ''} total
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="h-4 w-4" />
-              New Recon
+              New Scan
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>New Recon</DialogTitle>
+              <DialogTitle>New Scan</DialogTitle>
             </DialogHeader>
-            <NewScanForm onClose={() => setOpen(false)} />
+            <div className="overflow-y-auto flex-1 pr-1">
+              <NewScanForm onClose={() => setOpen(false)} />
+            </div>
           </DialogContent>
         </Dialog>
       </div>
@@ -49,10 +51,10 @@ export function DashboardPage() {
       {!isLoading && !data?.items.length && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
-            <p className="text-muted-foreground">No recons yet.</p>
+            <p className="text-muted-foreground">No scans yet.</p>
             <Button size="sm" onClick={() => setOpen(true)}>
               <Plus className="h-4 w-4" />
-              Launch your first recon
+              Launch your first scan
             </Button>
           </CardContent>
         </Card>
