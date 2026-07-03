@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { scansApi } from '@/api/scans'
-import type { CreateScanPayload, FollowupActivePayload } from '@/types'
+import type { CreateScanPayload, FollowupActivePayload, PortConfig } from '@/types'
 
 export function useScanList(page = 1) {
   return useQuery({
@@ -56,5 +56,50 @@ export function useFollowupActive(scanId: string) {
   return useMutation({
     mutationFn: (payload: FollowupActivePayload) => scansApi.followupActive(scanId, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+  })
+}
+
+export function useCancelScan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => scansApi.cancel(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['scans'] })
+      qc.invalidateQueries({ queryKey: ['scan', id] })
+    },
+  })
+}
+
+export function usePauseScan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => scansApi.pause(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['scans'] })
+      qc.invalidateQueries({ queryKey: ['scan', id] })
+    },
+  })
+}
+
+export function useResumeScan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => scansApi.resume(id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['scans'] })
+      qc.invalidateQueries({ queryKey: ['scan', id] })
+    },
+  })
+}
+
+export function usePatchScan(scanId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { modules?: string[]; port_config?: PortConfig }) =>
+      scansApi.patch(scanId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['scan', scanId] })
+      qc.invalidateQueries({ queryKey: ['scans'] })
+    },
   })
 }

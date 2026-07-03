@@ -22,6 +22,7 @@ from app.scans.schemas import (
     FollowupActiveScanItem,
     GroupSummarySchema,
     PagedScansResponse,
+    PatchScanRequest,
     ScanResponse,
     ScanResultsResponse,
     ScanShareResponse,
@@ -108,13 +109,100 @@ async def delete_scan(
     db: AsyncSession = Depends(get_db),
 ):
     scan = await service.get_scan_or_404(db, scan_id, current_user.id)
-
-    if scan.status == "running":
+    if scan.status in ("running", "paused"):
         scan.status = "cancelled"
         await db.commit()
     else:
         await db.delete(scan)
         await db.commit()
+
+
+@router.post("/{scan_id}/cancel", response_model=ScanResponse)
+async def cancel_scan(
+    scan_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await service.get_scan_or_404(db, scan_id, current_user.id)
+    if scan.status not in ("pending", "running", "paused"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot cancel a scan with status '{scan.status}'",
+        )
+    scan.status = "cancelled"
+    scan.completed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(scan)
+    return service.scan_to_response(scan)
+
+
+@router.post("/{scan_id}/pause", response_model=ScanResponse)
+async def pause_scan(
+    scan_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await service.get_scan_or_404(db, scan_id, current_user.id)
+    if scan.status != "running":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only running scans can be paused",
+        )
+    scan.status = "paused"
+    await db.commit()
+    await db.refresh(scan)
+    return service.scan_to_response(scan)
+
+
+@router.post("/{scan_id}/resume", response_model=ScanResponse)
+async def resume_scan(
+    scan_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await service.get_scan_or_404(db, scan_id, current_user.id)
+    if scan.status != "paused":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only paused scans can be resumed",
+        )
+    scan.status = "running"
+    await db.commit()
+    asyncio.create_task(run_scan(str(scan.id)))
+    await db.refresh(scan)
+    return service.scan_to_response(scan)
+
+
+@router.patch("/{scan_id}", response_model=ScanResponse)
+async def patch_scan(
+    scan_id: uuid.UUID,
+    body: PatchScanRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scan = await service.get_scan_or_404(db, scan_id, current_user.id)
+    if scan.status not in ("pending", "paused"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only pending or paused scans can be modified",
+        )
+
+    from app.scans.schemas import ACTIVE_MODULES, PASSIVE_MODULES, _ALLOWED_BY_TYPE
+    if body.modules is not None:
+        allowed = _ALLOWED_BY_TYPE[scan.scan_type]
+        invalid = set(body.modules) - allowed
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Module(s) not valid for {scan.scan_type} scans: {', '.join(sorted(invalid))}",
+            )
+        scan.modules = body.modules
+    if body.port_config is not None:
+        scan.port_config = body.port_config.model_dump()
+
+    await db.commit()
+    await db.refresh(scan)
+    return service.scan_to_response(scan)
 
 
 @router.get("/{scan_id}/results", response_model=ScanResultsResponse)
@@ -150,9 +238,14 @@ async def followup_active_scan(
             detail="Follow-up active scan can only be initiated from a passive or comprehensive scan",
         )
 
-    assets_result = await db.execute(
-        select(ScanAsset).where(ScanAsset.scan_id == scan_id)
-    )
+    stmt = select(ScanAsset).where(ScanAsset.scan_id == scan_id)
+    if body.asset_ids is not None:
+        try:
+            asset_uuids = [uuid.UUID(aid) for aid in body.asset_ids]
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid asset_id format")
+        stmt = stmt.where(ScanAsset.id.in_(asset_uuids))
+    assets_result = await db.execute(stmt)
     assets = list(assets_result.scalars().all())
 
     created: list[Scan] = []

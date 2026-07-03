@@ -69,7 +69,7 @@ export function ResultsPage() {
       {canFollowup && (
         <ActiveFollowupDialog
           scanId={scan.id}
-          assetCount={assets.length}
+          assets={assets}
           open={followupOpen}
           onClose={() => setFollowupOpen(false)}
         />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, AlertTriangle, WifiOff, Image, ChevronDown, ChevronUp } from 'lucide-react'
+import { Shield, AlertTriangle, WifiOff, Image, ChevronDown, ChevronUp, Zap } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { TechBadge } from './TechBadge'
 import { CVEList } from './CVEList'
 import { SuggestedScans } from './SuggestedScans'
+import { AssetScanDialog } from '@/components/scans/AssetScanDialog'
 import { cn } from '@/lib/utils'
 import type { ScanAsset } from '@/types'
 
@@ -20,6 +21,7 @@ const STATUS_ICON = {
 
 export function AssetCard({ asset, scanId }: { asset: ScanAsset; scanId: string }) {
   const [expanded, setExpanded] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const Icon = STATUS_ICON[asset.scan_status]
   const isLive = asset.scan_status === 'live'
   const screenshotUrl = asset.screenshot_path ? `/static/screenshots/${asset.screenshot_path}` : null
@@ -64,6 +66,15 @@ export function AssetCard({ asset, scanId }: { asset: ScanAsset; scanId: string 
                 WAF: {asset.waf_detected}
               </Badge>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-primary"
+              title="Run active scan on this asset"
+              onClick={() => setScanOpen(true)}
+            >
+              <Zap className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
 
@@ -145,6 +156,12 @@ export function AssetCard({ asset, scanId }: { asset: ScanAsset; scanId: string 
           </>
         )}
       </CardContent>
+
+      <AssetScanDialog
+        asset={asset}
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+      />
     </Card>
   )
 }

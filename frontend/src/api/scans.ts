@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { CreateScanPayload, FollowupActivePayload, FollowupActiveResult, PagedScans, Scan, ScanResults } from '@/types'
+import type { CreateScanPayload, FollowupActivePayload, FollowupActiveResult, PagedScans, PortConfig, Scan, ScanResults } from '@/types'
 
 export const scansApi = {
   create: (payload: CreateScanPayload) =>
@@ -26,4 +26,16 @@ export const scansApi = {
     api
       .post<FollowupActiveResult>(`/scans/${scanId}/followup-active`, payload)
       .then((r) => r.data),
+
+  cancel: (id: string) =>
+    api.post<Scan>(`/scans/${id}/cancel`).then((r) => r.data),
+
+  pause: (id: string) =>
+    api.post<Scan>(`/scans/${id}/pause`).then((r) => r.data),
+
+  resume: (id: string) =>
+    api.post<Scan>(`/scans/${id}/resume`).then((r) => r.data),
+
+  patch: (id: string, payload: { modules?: string[]; port_config?: PortConfig }) =>
+    api.patch<Scan>(`/scans/${id}`, payload).then((r) => r.data),
 }

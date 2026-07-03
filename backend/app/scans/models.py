@@ -35,6 +35,9 @@ class Scan(Base):
     container_ids: Mapped[list] = mapped_column(
         JSONB, server_default="'[]'::jsonb", nullable=False
     )
+    completed_stages: Mapped[list] = mapped_column(
+        JSONB, server_default="'[]'::jsonb", nullable=False
+    )
     dork_hits: Mapped[list] = mapped_column(
         JSONB, server_default="'[]'::jsonb", nullable=False
     )

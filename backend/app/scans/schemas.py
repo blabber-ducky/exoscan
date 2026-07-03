@@ -202,6 +202,7 @@ class ScanResponse(BaseModel):
     modules: list[str]
     port_config: dict
     status: str
+    completed_stages: list[str] = []
     dork_hits: list[Any]
     started_at: datetime | None
     completed_at: datetime | None
@@ -232,9 +233,24 @@ class TriggerSuggestedResponse(BaseModel):
     message: str
 
 
+class PatchScanRequest(BaseModel):
+    modules: list[str] | None = None
+    port_config: PortConfig | None = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> "PatchScanRequest":
+        if self.modules is not None:
+            if not self.modules:
+                raise ValueError("At least one module required")
+            if "cve_detection" in self.modules and "tech_fingerprinting" not in self.modules:
+                raise ValueError("cve_detection requires tech_fingerprinting")
+        return self
+
+
 class FollowupActiveRequest(BaseModel):
     modules: list[str]
     port_config: PortConfig = PortConfig()
+    asset_ids: list[str] | None = None  # if None, all assets from source scan are used
 
     @model_validator(mode="after")
     def _validate(self) -> "FollowupActiveRequest":

@@ -45,8 +45,13 @@ async def run_scan(scan_id: str) -> None:
         scan = await db.get(Scan, uuid.UUID(scan_id))
         if not scan:
             return
+
+        resuming = scan.status == "paused"
+        completed: set[str] = set(scan.completed_stages or [])
+
+        if not resuming:
+            scan.started_at = datetime.now(timezone.utc)
         scan.status = "running"
-        scan.started_at = datetime.now(timezone.utc)
         await db.commit()
 
         target = scan.target
@@ -57,30 +62,44 @@ async def run_scan(scan_id: str) -> None:
     log_fn = _make_log_fn(scan_id)
 
     try:
-        await log_fn(
-            "INFO", "orchestrator",
-            f"Scan started — type={scan_type}, target={target}, "
-            f"modules=[{', '.join(sorted(modules))}]",
-        )
+        if resuming:
+            await log_fn(
+                "INFO", "orchestrator",
+                f"Scan resumed — completed={sorted(completed)}, "
+                f"type={scan_type}, target={target}",
+            )
+        else:
+            await log_fn(
+                "INFO", "orchestrator",
+                f"Scan started — type={scan_type}, target={target}, "
+                f"modules=[{', '.join(sorted(modules))}]",
+            )
 
         # Stage 1: Passive recon
-        if scan_type in ("passive", "comprehensive"):
+        if "passive" not in completed and scan_type in ("passive", "comprehensive"):
             await _run_passive_stage(scan_id, target, modules, log_fn)
+            await _mark_stage(scan_id, "passive")
+            if await _is_stopped(scan_id, log_fn):
+                return
 
         # Stage 2: Liveness probe
-        if scan_type in ("active", "comprehensive"):
+        if "probe" not in completed and scan_type in ("active", "comprehensive"):
             await _run_probe_stage(scan_id, scan_type, target, log_fn)
+            await _mark_stage(scan_id, "probe")
+            if await _is_stopped(scan_id, log_fn):
+                return
 
         # Stage 3: Active recon
-        if scan_type in ("active", "comprehensive"):
+        if "active" not in completed and scan_type in ("active", "comprehensive"):
             await _run_active_stage(scan_id, modules, port_config, log_fn)
+            await _mark_stage(scan_id, "active")
 
         await log_fn("INFO", "orchestrator", "Scan completed successfully")
         await log_bus.publish(scan_id, json.dumps({"type": "complete"}))
 
         async with AsyncSessionLocal() as db:
             scan = await db.get(Scan, uuid.UUID(scan_id))
-            if scan:
+            if scan and scan.status == "running":
                 scan.status = "completed"
                 scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
@@ -90,11 +109,48 @@ async def run_scan(scan_id: str) -> None:
         await log_bus.publish(scan_id, json.dumps({"type": "error", "message": str(exc)}))
         async with AsyncSessionLocal() as db:
             scan = await db.get(Scan, uuid.UUID(scan_id))
-            if scan:
+            if scan and scan.status == "running":
                 scan.status = "failed"
                 scan.error_message = str(exc)
                 scan.completed_at = datetime.now(timezone.utc)
                 await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Stage checkpoint helpers
+# ---------------------------------------------------------------------------
+
+async def _mark_stage(scan_id: str, stage: str) -> None:
+    """Record a completed stage so resume can skip it."""
+    async with AsyncSessionLocal() as db:
+        scan = await db.get(Scan, uuid.UUID(scan_id))
+        if scan:
+            stages = list(scan.completed_stages or [])
+            if stage not in stages:
+                stages.append(stage)
+            scan.completed_stages = stages
+            await db.commit()
+
+
+async def _is_stopped(scan_id: str, log_fn: _LogFn) -> bool:
+    """
+    Check if an external signal (pause or cancel) has been set between stages.
+    Returns True if the orchestrator should stop; leaves status intact for the
+    caller (paused = user wants to resume later; cancelled = done).
+    """
+    async with AsyncSessionLocal() as db:
+        scan = await db.get(Scan, uuid.UUID(scan_id))
+        if not scan:
+            return True
+        if scan.status == "paused":
+            await log_fn("INFO", "orchestrator", "Scan paused — will resume from next stage")
+            return True
+        if scan.status == "cancelled":
+            scan.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+            await log_fn("INFO", "orchestrator", "Scan cancelled")
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------

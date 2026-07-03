@@ -58,13 +58,16 @@ export interface ScanShare {
   created_at: string
 }
 
+export type ScanStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+
 export interface Scan {
   id: string
   target: string
   scan_type: 'passive' | 'active' | 'comprehensive'
   modules: string[]
   port_config: PortConfig
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  status: ScanStatus
+  completed_stages: string[]
   dork_hits: DorkHit[]
   started_at: string | null
   completed_at: string | null
@@ -170,6 +173,7 @@ export interface CreateScanPayload {
 export interface FollowupActivePayload {
   modules: string[]
   port_config: PortConfig
+  asset_ids?: string[]
 }
 
 export interface FollowupActiveScanItem {

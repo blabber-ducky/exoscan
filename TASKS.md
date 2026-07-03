@@ -199,6 +199,29 @@ docker compose up --build
 
 ---
 
+## Phase 14: Scan Lifecycle Controls + Per-asset Active Scans [x]
+
+- [x] `backend/alembic/versions/004_scan_completed_stages.py` — adds `completed_stages JSONB DEFAULT '[]'` to `scans` table for pause/resume checkpoint tracking
+- [x] `backend/alembic/versions/005_scan_status_paused.py` — expands `chk_scan_status` CHECK constraint to include `'paused'`
+- [x] `backend/app/scans/models.py` — `completed_stages: Mapped[list]` column added to `Scan` ORM model
+- [x] `backend/app/scans/schemas.py` — `PatchScanRequest` (modules + port_config), `completed_stages` in `ScanResponse`, `asset_ids` in `FollowupActiveRequest`, `ScanStatus` literal type
+- [x] `backend/app/scans/service.py` — `scan_to_response` includes `completed_stages`
+- [x] `backend/app/scans/router.py` — `POST /{id}/cancel` (keeps record), `POST /{id}/pause`, `POST /{id}/resume`, `PATCH /{id}` (modules/port_config, pending/paused only); followup endpoint filters by `asset_ids` when provided
+- [x] `backend/app/recon/orchestrator.py` — `run_scan()` rewritten with pause/resume: checks DB status after each stage (`_is_stopped`), skips already-`completed_stages`, resumes from correct point; `_mark_stage()` helper
+- [x] `frontend/src/types/index.ts` — `ScanStatus` type, `completed_stages` in `Scan`, `asset_ids` in `FollowupActivePayload`
+- [x] `frontend/src/api/scans.ts` — `cancel`, `pause`, `resume`, `patch` API functions
+- [x] `frontend/src/hooks/useScans.ts` — `useCancelScan`, `usePauseScan`, `useResumeScan`, `usePatchScan` mutations
+- [x] `frontend/src/components/scans/ScanStatusBadge.tsx` — `paused` status variant (yellow)
+- [x] `frontend/src/pages/ScanPage.tsx` — Cancel / Pause / Resume / Edit buttons in header (conditional on ownership + status); `EditScanDialog` integration
+- [x] `frontend/src/components/scans/EditScanDialog.tsx` — dialog for modifying modules and port config on pending/paused scans; warns about completed stages
+- [x] `frontend/src/components/scans/ActiveFollowupDialog.tsx` — rewritten: asset multi-select with individual checkboxes, filter input, group quick-select by status (Live/Unreachable/etc.), all/none toggle, >20-asset warning; sends `asset_ids` in payload
+- [x] `frontend/src/components/results/AssetCard.tsx` — Zap button per asset opens `AssetScanDialog`
+- [x] `frontend/src/components/scans/AssetScanDialog.tsx` — per-asset active scan dialog (module selection + port config); target derived from asset.url → https://{hostname} → ip_address
+- [x] `frontend/src/pages/ResultsPage.tsx` — passes `assets` array to `ActiveFollowupDialog`
+- [x] `exoscan-testing/test_runner.py` — `Session.patch()` added; `run_scan_lifecycle()` tests cancel/pause/resume/patch endpoints (85/0/6 pass/fail/skip in full suite)
+
+---
+
 ## Phase 14: Sharing & Groups [x]
 
 **Data model (migration 003):**

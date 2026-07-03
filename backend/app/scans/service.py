@@ -248,6 +248,7 @@ def scan_to_response(
         modules=scan.modules,
         port_config=scan.port_config,
         status=scan.status,
+        completed_stages=list(scan.completed_stages or []),
         dork_hits=scan.dork_hits,
         started_at=scan.started_at,
         completed_at=scan.completed_at,
