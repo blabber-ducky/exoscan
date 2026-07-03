@@ -1,4 +1,4 @@
-import { client } from './client'
+import { api as client } from './client'
 import type { UserSettings, UserSettingsRequest, TestConnectionResult } from '@/types'
 
 export const settingsApi = {
