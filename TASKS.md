@@ -374,15 +374,16 @@ Add a "Run AI Pentest" button to the Results page for any completed Passive or A
 
 ---
 
-## Phase 19: Scan Re-run [ ]
+## Phase 19: Scan Re-run [x]
 
 Add a "Re-run" action on both the dashboard scan cards and the Results page. Creates a new scan with the identical config (target, scan_type, modules, port_config, strix_config) using the existing `POST /scans` endpoint. Re-running a pentest opens `PentestLaunchDialog` (Phase 18) pre-filled with the original target and strix_config so the user can adjust instructions/budget before launching.
 
 **Frontend:**
-- [ ] `frontend/src/components/scans/ScanCard.tsx` — replace standalone Delete button with a three-dot (`MoreVertical`) dropdown menu containing "Re-run" and "Delete"; Re-run disabled (with tooltip) while scan is `pending` or `running`
-- [ ] `frontend/src/hooks/useScans.ts` — `useRerunScan()` mutation: reads existing `Scan` object, calls `scansApi.create()` with cloned config; for `pentest` scans, opens `PentestLaunchDialog` pre-filled instead of submitting directly
-- [ ] `frontend/src/pages/ResultsPage.tsx` — "Re-run Scan" button in the header area (next to "Active Recon Assets"); same pre-fill logic for pentest
-- [ ] `frontend/src/components/ui/dropdown-menu.tsx` — add shadcn-compatible DropdownMenu component (Radix `@radix-ui/react-dropdown-menu`) if not already present
+- [x] `frontend/package.json` — added `@radix-ui/react-dropdown-menu: ^2.1.2`
+- [x] `frontend/src/components/ui/dropdown-menu.tsx` — new shadcn-compatible wrapper (Content, Item, Separator)
+- [x] `frontend/src/components/scans/ScanCard.tsx` — three-dot `MoreVertical` DropdownMenu replaces standalone Delete; Re-run disabled while pending/running; pentest re-run opens `PentestLaunchDialog` with empty assets; `ShieldAlert` added to `TYPE_ICON` map for pentest scans
+- [x] `frontend/src/components/results/PentestLaunchDialog.tsx` — `isStrixConfig` type guard added; scan mode/instructions/budget pre-filled from `scan.strix_config` when valid (pentest re-runs), otherwise falls back to user settings defaults
+- [x] `frontend/src/pages/ResultsPage.tsx` — "Re-run" ghost button in header (owner only, disabled while active); `handleRerun` clones config for non-pentest or opens `PentestLaunchDialog` for pentest
 
 **Backend:** No changes required.
 

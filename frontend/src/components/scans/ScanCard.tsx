@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Globe, Zap, Layers, Trash2, ExternalLink, Share2, User } from 'lucide-react'
+import { Globe, Zap, Layers, ShieldAlert, ExternalLink, Share2, User, MoreVertical, RotateCcw, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ScanStatusBadge } from './ScanStatusBadge'
 import { ShareDialog } from './ShareDialog'
-import { useDeleteScan } from '@/hooks/useScans'
+import { PentestLaunchDialog } from '@/components/results/PentestLaunchDialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { useCreateScan, useDeleteScan } from '@/hooks/useScans'
 import { SCAN_TYPE_LABELS } from '@/types'
 import type { Scan } from '@/types'
 
@@ -14,12 +21,31 @@ const TYPE_ICON: Record<Scan['scan_type'], typeof Globe> = {
   passive: Globe,
   active: Zap,
   comprehensive: Layers,
+  pentest: ShieldAlert,
 }
 
+const isActiveStatus = (s: Scan['status']) => s === 'pending' || s === 'running'
+
 export function ScanCard({ scan }: { scan: Scan }) {
+  const createScan = useCreateScan()
   const deleteScan = useDeleteScan()
   const [shareOpen, setShareOpen] = useState(false)
+  const [rerunPentestOpen, setRerunPentestOpen] = useState(false)
+
   const Icon = TYPE_ICON[scan.scan_type]
+
+  const handleRerun = () => {
+    if (scan.scan_type === 'pentest') {
+      setRerunPentestOpen(true)
+      return
+    }
+    createScan.mutate({
+      target: scan.target,
+      scan_type: scan.scan_type,
+      modules: scan.modules,
+      port_config: scan.port_config,
+    })
+  }
 
   return (
     <>
@@ -56,16 +82,9 @@ export function ScanCard({ scan }: { scan: Scan }) {
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
-            {scan.status === 'completed' && (
+            {(scan.status === 'completed' || scan.status === 'running' || scan.status === 'pending') && (
               <Button variant="ghost" size="icon" asChild>
-                <Link to={`/scans/${scan.id}/results`}>
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              </Button>
-            )}
-            {(scan.status === 'running' || scan.status === 'pending') && (
-              <Button variant="ghost" size="icon" asChild>
-                <Link to={`/scans/${scan.id}`}>
+                <Link to={scan.status === 'completed' ? `/scans/${scan.id}/results` : `/scans/${scan.id}`}>
                   <ExternalLink className="h-4 w-4" />
                 </Link>
               </Button>
@@ -81,15 +100,36 @@ export function ScanCard({ scan }: { scan: Scan }) {
               </Button>
             )}
             {scan.is_owner && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => deleteScan.mutate(scan.id)}
-                disabled={deleteScan.isPending}
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground"
+                    disabled={createScan.isPending || deleteScan.isPending}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleRerun}
+                    disabled={isActiveStatus(scan.status)}
+                    className="gap-2"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Re-run
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => deleteScan.mutate(scan.id)}
+                    className="text-destructive focus:text-destructive gap-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </CardContent>
@@ -100,6 +140,16 @@ export function ScanCard({ scan }: { scan: Scan }) {
           scanId={scan.id}
           open={shareOpen}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+
+      {/* Pentest re-run dialog — assets empty since ScanCard only has counts */}
+      {scan.is_owner && scan.scan_type === 'pentest' && (
+        <PentestLaunchDialog
+          scan={scan}
+          assets={[]}
+          open={rerunPentestOpen}
+          onClose={() => setRerunPentestOpen(false)}
         />
       )}
     </>

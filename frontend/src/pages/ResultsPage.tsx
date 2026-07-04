@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Shield, AlertTriangle, Globe, Zap, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Shield, AlertTriangle, Globe, Zap, ShieldAlert, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,11 +11,13 @@ import { PentestResultsPanel } from '@/components/results/PentestResultsPanel'
 import { PentestLaunchDialog } from '@/components/results/PentestLaunchDialog'
 import { ActiveFollowupDialog } from '@/components/scans/ActiveFollowupDialog'
 import { useScanResults } from '@/hooks/useScanResults'
+import { useCreateScan } from '@/hooks/useScans'
 import { SCAN_TYPE_LABELS } from '@/types'
 
 export function ResultsPage() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading, error } = useScanResults(id)
+  const createScan = useCreateScan()
   const [followupOpen, setFollowupOpen] = useState(false)
   const [pentestLaunchOpen, setPentestLaunchOpen] = useState(false)
 
@@ -51,6 +53,19 @@ export function ResultsPage() {
 
   const canLaunchPentest = !isPentest && scan.is_owner && scan.status === 'completed'
 
+  const handleRerun = () => {
+    if (isPentest) {
+      setPentestLaunchOpen(true)
+      return
+    }
+    createScan.mutate({
+      target: scan.target,
+      scan_type: scan.scan_type,
+      modules: scan.modules,
+      port_config: scan.port_config,
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -75,6 +90,18 @@ export function ResultsPage() {
           <Button size="sm" variant="outline" onClick={() => setPentestLaunchOpen(true)} className="shrink-0 gap-1.5">
             <ShieldAlert className="h-3.5 w-3.5" />
             Run AI Pentest
+          </Button>
+        )}
+        {scan.is_owner && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleRerun}
+            disabled={createScan.isPending || scan.status === 'running' || scan.status === 'pending'}
+            className="shrink-0 gap-1.5 text-muted-foreground"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Re-run
           </Button>
         )}
       </div>
