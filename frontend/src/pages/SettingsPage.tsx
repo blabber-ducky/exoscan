@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Settings, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Settings, Loader2, Eye, EyeOff, Monitor, Box, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,11 +9,32 @@ import { useSettings, useUpdateSettings, useTestConnection } from '@/hooks/useSe
 import { LLM_PROVIDERS } from '@/types'
 import { cn } from '@/lib/utils'
 
+type OllamaMode = 'docker_host' | 'docker_container' | 'remote'
+
 const SCAN_MODES = [
   { value: 'quick', label: 'Quick', desc: '~5 min' },
   { value: 'standard', label: 'Standard', desc: '30–60 min' },
   { value: 'deep', label: 'Deep', desc: '1–4 hrs' },
 ] as const
+
+const OLLAMA_MODES: { value: OllamaMode; label: string; desc: string; icon: typeof Monitor }[] = [
+  { value: 'docker_host', label: 'Docker Host', desc: 'Ollama on the host machine via host.docker.internal', icon: Monitor },
+  { value: 'docker_container', label: 'Docker Container', desc: 'Ollama as a named container on the exoscan network', icon: Box },
+  { value: 'remote', label: 'Remote Server', desc: 'Ollama on a remote machine at a custom URL', icon: Globe },
+]
+
+function parseOllamaMode(url: string | null): { mode: OllamaMode; containerName: string; remoteUrl: string } {
+  if (!url) return { mode: 'docker_host', containerName: 'ollama', remoteUrl: '' }
+  if (url.includes('host.docker.internal')) return { mode: 'docker_host', containerName: 'ollama', remoteUrl: '' }
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname
+    if (host && !host.includes('.') && host !== 'localhost') {
+      return { mode: 'docker_container', containerName: host, remoteUrl: '' }
+    }
+  } catch {}
+  return { mode: 'remote', containerName: 'ollama', remoteUrl: url }
+}
 
 export function SettingsPage() {
   const { data: settings, isLoading } = useSettings()
@@ -32,6 +53,11 @@ export function SettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [showPerplexityKey, setShowPerplexityKey] = useState(false)
 
+  // Ollama-specific state
+  const [ollamaMode, setOllamaMode] = useState<OllamaMode>('docker_host')
+  const [ollamaContainerName, setOllamaContainerName] = useState('ollama')
+  const [ollamaRemoteUrl, setOllamaRemoteUrl] = useState('')
+
   useEffect(() => {
     if (!settings) return
     setProvider(settings.llm_provider)
@@ -41,9 +67,22 @@ export function SettingsPage() {
     setTelemetry(settings.strix_telemetry)
     setScanMode(settings.strix_default_scan_mode)
     setBudget(settings.strix_default_max_budget_usd.toFixed(2))
+
+    const parsed = parseOllamaMode(settings.ollama_base_url)
+    setOllamaMode(parsed.mode)
+    setOllamaContainerName(parsed.containerName)
+    setOllamaRemoteUrl(parsed.remoteUrl)
   }, [settings])
 
   const currentProvider = LLM_PROVIDERS.find((p) => p.value === provider)
+  const isOllama = provider === 'ollama'
+
+  const resolvedOllamaUrl =
+    ollamaMode === 'docker_host'
+      ? 'http://host.docker.internal:11434'
+      : ollamaMode === 'docker_container'
+      ? `http://${ollamaContainerName || 'ollama'}:11434`
+      : ollamaRemoteUrl
 
   const handleSave = () => {
     const req: Record<string, unknown> = {
@@ -55,10 +94,14 @@ export function SettingsPage() {
     }
     if (apiKey) req.llm_api_key = apiKey
     if (perplexityKey) req.perplexity_api_key = perplexityKey
+    if (isOllama) req.ollama_base_url = resolvedOllamaUrl
     update.mutate(req as Parameters<typeof update.mutate>[0])
     setApiKey('')
     setPerplexityKey('')
   }
+
+  // Test connection is enabled for Ollama (no API key needed); for others require a saved key
+  const canTest = settings?.llm_provider === 'ollama' || settings?.llm_api_key_set === true
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading settings…</p>
@@ -113,32 +156,105 @@ export function SettingsPage() {
             />
           </div>
 
-          {/* API Key */}
-          <div className="space-y-1.5">
-            <Label htmlFor="api-key" className="text-xs">
-              API Key
-              {apiKeyPlaceholder && (
-                <span className="ml-2 font-mono text-muted-foreground">{apiKeyPlaceholder}</span>
-              )}
-            </Label>
-            <div className="relative">
-              <Input
-                id="api-key"
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={apiKeyPlaceholder ? 'Enter new key to replace…' : 'sk-...'}
-                className="h-8 text-sm font-mono pr-8"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey((v) => !v)}
-                className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
-              >
-                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+          {/* API Key — hidden for Ollama (local inference, no key needed) */}
+          {!isOllama && (
+            <div className="space-y-1.5">
+              <Label htmlFor="api-key" className="text-xs">
+                API Key
+                {apiKeyPlaceholder && (
+                  <span className="ml-2 font-mono text-muted-foreground">{apiKeyPlaceholder}</span>
+                )}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="api-key"
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={apiKeyPlaceholder ? 'Enter new key to replace…' : 'sk-...'}
+                  className="h-8 text-sm font-mono pr-8"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((v) => !v)}
+                  className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Ollama deployment mode — only shown when Ollama is selected */}
+          {isOllama && (
+            <div className="space-y-3">
+              <Label className="text-xs">Ollama Deployment</Label>
+              <div className="grid gap-2">
+                {OLLAMA_MODES.map((m) => {
+                  const Icon = m.icon
+                  return (
+                    <button
+                      key={m.value}
+                      onClick={() => setOllamaMode(m.value)}
+                      className={cn(
+                        'flex items-start gap-3 rounded-md border px-3 py-2.5 text-left transition-colors',
+                        ollamaMode === m.value
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', ollamaMode === m.value ? 'text-primary' : 'text-muted-foreground')} />
+                      <div>
+                        <p className={cn('text-xs font-medium', ollamaMode === m.value ? 'text-foreground' : 'text-muted-foreground')}>
+                          {m.label}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{m.desc}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Docker container name input */}
+              {ollamaMode === 'docker_container' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ollama-container" className="text-xs">Container Name</Label>
+                  <Input
+                    id="ollama-container"
+                    value={ollamaContainerName}
+                    onChange={(e) => setOllamaContainerName(e.target.value)}
+                    placeholder="ollama"
+                    className="h-8 text-sm font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The Docker container must be on the <span className="font-mono">exoscan_net</span> network.
+                  </p>
+                </div>
+              )}
+
+              {/* Remote URL input */}
+              {ollamaMode === 'remote' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ollama-url" className="text-xs">Ollama URL</Label>
+                  <Input
+                    id="ollama-url"
+                    value={ollamaRemoteUrl}
+                    onChange={(e) => setOllamaRemoteUrl(e.target.value)}
+                    placeholder="http://192.168.1.50:11434"
+                    className="h-8 text-sm font-mono"
+                  />
+                </div>
+              )}
+
+              {/* Resolved URL hint */}
+              {resolvedOllamaUrl && (
+                <p className="text-xs text-muted-foreground">
+                  Resolved URL:{' '}
+                  <span className="font-mono text-foreground">{resolvedOllamaUrl}</span>
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -265,8 +381,8 @@ export function SettingsPage() {
         <Button
           variant="outline"
           onClick={() => testConn.mutate()}
-          disabled={testConn.isPending || !settings?.llm_api_key_set}
-          title={!settings?.llm_api_key_set ? 'Save an API key first' : undefined}
+          disabled={testConn.isPending || !canTest}
+          title={!canTest ? 'Save an API key first' : undefined}
         >
           {testConn.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Testing…</> : 'Test Connection'}
         </Button>

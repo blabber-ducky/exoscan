@@ -43,23 +43,30 @@ async def test_connection(
     db: AsyncSession = Depends(get_db),
 ):
     row = await service.get_or_create(db, current_user.id)
-    if not row.llm_api_key_encrypted:
+    is_ollama = row.llm_provider == "ollama"
+
+    if not is_ollama and not row.llm_api_key_encrypted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No LLM API key configured — save your settings first",
         )
     try:
-        api_key = service.decrypt_key(row.llm_api_key_encrypted)
         model = f"{row.llm_provider}/{row.llm_model}"
 
         import litellm
         litellm.set_verbose = False
-        response = await litellm.acompletion(
-            model=model,
-            messages=[{"role": "user", "content": "ping"}],
-            max_tokens=1,
-            api_key=api_key,
-        )
+
+        kwargs: dict = {
+            "model": model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1,
+        }
+        if row.llm_api_key_encrypted:
+            kwargs["api_key"] = service.decrypt_key(row.llm_api_key_encrypted)
+        if is_ollama:
+            kwargs["api_base"] = row.ollama_base_url or "http://host.docker.internal:11434"
+
+        response = await litellm.acompletion(**kwargs)
         _ = response  # response consumed; just checking no exception
         return TestConnectionResponse(ok=True)
     except Exception as exc:

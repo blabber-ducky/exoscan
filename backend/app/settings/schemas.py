@@ -42,6 +42,7 @@ class UserSettingsRequest(BaseModel):
     strix_telemetry: bool | None = None
     strix_default_scan_mode: Literal["quick", "standard", "deep"] | None = None
     strix_default_max_budget_usd: float | None = None
+    ollama_base_url: str | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> "UserSettingsRequest":
@@ -65,6 +66,7 @@ class UserSettingsResponse(BaseModel):
     strix_telemetry: bool
     strix_default_scan_mode: str
     strix_default_max_budget_usd: float
+    ollama_base_url: str | None
     updated_at: datetime
 
 

@@ -389,30 +389,24 @@ Add a "Re-run" action on both the dashboard scan cards and the Results page. Cre
 
 ---
 
-## Phase 20: Ollama Deployment Modes [ ]
+## Phase 20: Ollama Deployment Modes [x]
 
 Extend LLM provider settings to support three Ollama deployment topologies: Ollama running natively on the Docker host, as a named Docker container on `exoscan_net`, or on a remote server. The backend uses the stored `ollama_base_url` when making LiteLLM test-connection calls and when injecting env vars into the Strix runner container.
 
 **Data model:**
-- [ ] `backend/alembic/versions/009_ollama_base_url.py` — `ALTER TABLE user_settings ADD COLUMN ollama_base_url TEXT DEFAULT NULL`
+- [x] `backend/alembic/versions/009_ollama_base_url.py` — `ALTER TABLE user_settings ADD COLUMN ollama_base_url TEXT DEFAULT NULL`
 
 **Backend:**
-- [ ] `backend/app/settings/models.py` — add `ollama_base_url: Mapped[str | None]`
-- [ ] `backend/app/settings/schemas.py` — add `ollama_base_url: str | None` to `UserSettingsRequest` and `UserSettingsResponse`; validate that when `llm_provider == 'ollama'` and a key save is attempted, `ollama_base_url` is also provided (or already stored)
-- [ ] `backend/app/settings/service.py` — persist and return `ollama_base_url`
-- [ ] `backend/app/settings/router.py` — `POST /settings/test-connection`: when `llm_provider == 'ollama'`, pass `api_base=settings.ollama_base_url` to the LiteLLM completion call
-- [ ] `backend/app/recon/pentest/strix.py` — when `llm_provider == 'ollama'`:
-  - Pass `OLLAMA_API_BASE=ollama_base_url` as an env var on the Strix runner container
-  - If the URL host matches a Docker container name on `exoscan_net` (detected by absence of scheme and presence of no dots), attach the runner container to `exoscan_net` so it can reach the Ollama container by name
+- [x] `backend/app/settings/models.py` — add `ollama_base_url: Mapped[str | None]`
+- [x] `backend/app/settings/schemas.py` — add `ollama_base_url: str | None` to `UserSettingsRequest` and `UserSettingsResponse`
+- [x] `backend/app/settings/service.py` — persist (empty string → None) and return `ollama_base_url`
+- [x] `backend/app/settings/router.py` — `POST /settings/test-connection`: Ollama skips API key requirement; passes `api_base=ollama_base_url or 'http://host.docker.internal:11434'` to LiteLLM
+- [x] `backend/app/recon/pentest/strix.py` — when provider is ollama: sets `OLLAMA_API_BASE` env var; `_is_container_url()` detects bare hostnames (no dots, not localhost) → attaches runner container to `docker_network`; `llm_api_key` is now `str | None`; `LLM_API_KEY` only set when non-empty
+- [x] `backend/app/recon/orchestrator.py` — Ollama skips `llm_api_key_encrypted` check; passes `ollama_base_url` and `docker_network` to `run_strix`
 
 **Frontend:**
-- [ ] `frontend/src/types/index.ts` — add `ollama_base_url: string | null` to `UserSettings` and `UserSettingsRequest`
-- [ ] `frontend/src/pages/SettingsPage.tsx` — when Ollama provider selected, show three deployment mode radio cards:
-  - **Docker host** — label: "Ollama on this machine (native install)"; auto-fills `ollama_base_url` as `http://host.docker.internal:11434`; no extra input
-  - **Docker container** — label: "Ollama as a Docker container"; shows container name input; builds URL as `http://{container_name}:11434`
-  - **Remote server** — label: "Remote Ollama server"; shows free-form URL input (e.g. `http://192.168.1.50:11434`)
-  - Deployment mode is UI-only state; the persisted value is always the resolved `ollama_base_url`
-- [ ] `frontend/src/pages/SettingsPage.tsx` — show resolved URL as read-only hint below the radio cards so users can verify what will be sent
+- [x] `frontend/src/types/index.ts` — add `ollama_base_url: string | null` to `UserSettings` and `UserSettingsRequest`
+- [x] `frontend/src/pages/SettingsPage.tsx` — when Ollama selected: API key input hidden; three deployment mode card buttons (Docker Host / Docker Container / Remote Server); Docker Container shows container name input + exoscan_net note; Remote Server shows URL input; resolved URL hint displayed; `Test Connection` enabled for Ollama without a saved API key
 
 ---
 

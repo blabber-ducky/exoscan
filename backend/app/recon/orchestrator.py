@@ -146,6 +146,7 @@ async def _run_pentest_stage(
 ) -> None:
     from app.settings.service import get_or_create, decrypt_key
     from app.recon.pentest.strix import run_strix, parse_strix_output
+    from app.config import settings as app_config
     import os
 
     # Fetch user settings for LLM credentials
@@ -154,17 +155,20 @@ async def _run_pentest_stage(
         if not scan_row:
             raise RuntimeError("Scan not found")
         user_id = scan_row.user_id
-        settings = await get_or_create(db, user_id)
+        llm_settings = await get_or_create(db, user_id)
 
-    if not settings.llm_api_key_encrypted:
+    is_ollama = llm_settings.llm_provider == "ollama"
+    if not is_ollama and not llm_settings.llm_api_key_encrypted:
         raise RuntimeError(
             "LLM API key not configured — visit Settings to add one before running AI Pentest"
         )
 
-    llm_api_key = decrypt_key(settings.llm_api_key_encrypted)
+    llm_api_key: str | None = None
+    if llm_settings.llm_api_key_encrypted:
+        llm_api_key = decrypt_key(llm_settings.llm_api_key_encrypted)
     perplexity_api_key: str | None = None
-    if settings.perplexity_api_key_encrypted:
-        perplexity_api_key = decrypt_key(settings.perplexity_api_key_encrypted)
+    if llm_settings.perplexity_api_key_encrypted:
+        perplexity_api_key = decrypt_key(llm_settings.perplexity_api_key_encrypted)
 
     pentest_results_path = os.environ.get("PENTEST_RESULTS_PATH", "/app/pentest_results")
 
@@ -173,13 +177,15 @@ async def _run_pentest_stage(
         scan_id=scan_id,
         target=target,
         strix_cfg=strix_cfg,
-        llm_provider=settings.llm_provider,
-        llm_model=settings.llm_model,
+        llm_provider=llm_settings.llm_provider,
+        llm_model=llm_settings.llm_model,
         llm_api_key=llm_api_key,
         perplexity_api_key=perplexity_api_key,
-        strix_telemetry=settings.strix_telemetry,
+        strix_telemetry=llm_settings.strix_telemetry,
         pentest_results_path=pentest_results_path,
         log_fn=log_fn,
+        ollama_base_url=llm_settings.ollama_base_url,
+        docker_network=app_config.docker_network,
     )
 
     await log_fn("INFO", "pentest", "Parsing Strix output…")

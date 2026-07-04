@@ -38,6 +38,7 @@ class UserSettings(Base):
     strix_default_max_budget_usd: Mapped[Decimal] = mapped_column(
         Numeric(6, 2), server_default="10.00", nullable=False
     )
+    ollama_base_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )

@@ -64,6 +64,8 @@ async def upsert(
         row.strix_default_scan_mode = req.strix_default_scan_mode
     if req.strix_default_max_budget_usd is not None:
         row.strix_default_max_budget_usd = req.strix_default_max_budget_usd  # type: ignore[assignment]
+    if req.ollama_base_url is not None:
+        row.ollama_base_url = req.ollama_base_url or None
 
     row.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -84,5 +86,6 @@ def to_response(row: UserSettings) -> UserSettingsResponse:
         strix_telemetry=row.strix_telemetry,
         strix_default_scan_mode=row.strix_default_scan_mode,
         strix_default_max_budget_usd=float(row.strix_default_max_budget_usd),
+        ollama_base_url=row.ollama_base_url,
         updated_at=row.updated_at,
     )

@@ -245,6 +245,7 @@ export interface UserSettings {
   strix_telemetry: boolean
   strix_default_scan_mode: 'quick' | 'standard' | 'deep'
   strix_default_max_budget_usd: number
+  ollama_base_url: string | null
   updated_at: string
 }
 
@@ -256,6 +257,7 @@ export interface UserSettingsRequest {
   strix_telemetry?: boolean
   strix_default_scan_mode?: 'quick' | 'standard' | 'deep'
   strix_default_max_budget_usd?: number
+  ollama_base_url?: string | null
 }
 
 export interface TestConnectionResult {
