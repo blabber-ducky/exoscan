@@ -8,6 +8,7 @@ import { ScanStatusBadge } from '@/components/scans/ScanStatusBadge'
 import { PassiveReconPanel } from '@/components/results/PassiveReconPanel'
 import { AssetGrid } from '@/components/results/AssetGrid'
 import { PentestResultsPanel } from '@/components/results/PentestResultsPanel'
+import { PentestLaunchDialog } from '@/components/results/PentestLaunchDialog'
 import { ActiveFollowupDialog } from '@/components/scans/ActiveFollowupDialog'
 import { useScanResults } from '@/hooks/useScanResults'
 import { SCAN_TYPE_LABELS } from '@/types'
@@ -16,6 +17,7 @@ export function ResultsPage() {
   const { id } = useParams<{ id: string }>()
   const { data, isLoading, error } = useScanResults(id)
   const [followupOpen, setFollowupOpen] = useState(false)
+  const [pentestLaunchOpen, setPentestLaunchOpen] = useState(false)
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading results…</p>
@@ -47,6 +49,8 @@ export function ResultsPage() {
     (scan.scan_type === 'passive' || scan.scan_type === 'comprehensive') &&
     assets.length > 0
 
+  const canLaunchPentest = !isPentest && scan.is_owner && scan.status === 'completed'
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -67,6 +71,12 @@ export function ResultsPage() {
             Active Recon Assets
           </Button>
         )}
+        {canLaunchPentest && (
+          <Button size="sm" variant="outline" onClick={() => setPentestLaunchOpen(true)} className="shrink-0 gap-1.5">
+            <ShieldAlert className="h-3.5 w-3.5" />
+            Run AI Pentest
+          </Button>
+        )}
       </div>
 
       {canFollowup && (
@@ -75,6 +85,14 @@ export function ResultsPage() {
           assets={assets}
           open={followupOpen}
           onClose={() => setFollowupOpen(false)}
+        />
+      )}
+      {canLaunchPentest && (
+        <PentestLaunchDialog
+          scan={scan}
+          assets={assets}
+          open={pentestLaunchOpen}
+          onClose={() => setPentestLaunchOpen(false)}
         />
       )}
 

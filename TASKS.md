@@ -361,14 +361,14 @@ Two-track UX: Recon (passive/active with tooltips) or Comprehensive Security Tes
 
 ---
 
-## Phase 18: Launch AI Pentest from Recon Results [ ]
+## Phase 18: Launch AI Pentest from Recon Results [x]
 
 Add a "Run AI Pentest" button to the Results page for any completed Passive or Active Recon scan (owner only). Opens a launch dialog with a target picker (original scan target + all discovered asset hostnames/URLs), Strix instructions textarea, scan mode radio, and budget input. Submits `POST /scans` with `scan_type: 'pentest'`, `parent_scan_id` set to the current scan, and `modules: []`. No backend changes required.
 
 **Frontend:**
-- [ ] `frontend/src/components/results/PentestLaunchDialog.tsx` — new dialog: target dropdown (scan.target + each asset hostname/url), instructions textarea (max 500 chars, char counter), scan mode radio (Quick/Standard/Deep), budget input, LLM-not-configured warning with Settings link, submit via `useCreateScan`
-- [ ] `frontend/src/pages/ResultsPage.tsx` — "Run AI Pentest" button: visible when `!isPentest && scan.is_owner && scan.status === 'completed'`; opens `PentestLaunchDialog`
-- [ ] `frontend/src/components/scans/NewScanForm.tsx` — verify instructions textarea is present in the AI Config step (already implemented in Phase 17; confirm it's wired correctly)
+- [x] `frontend/src/components/results/PentestLaunchDialog.tsx` — new dialog: target dropdown (scan.target + each asset hostname/url, deduped), instructions textarea (max 500 chars, char counter), scan mode radio (Quick/Standard/Deep), budget input, LLM-not-configured warning with Settings link, submit via `useCreateScan`; defaults pre-filled from user settings
+- [x] `frontend/src/pages/ResultsPage.tsx` — `canLaunchPentest` flag (`!isPentest && is_owner && completed`); "Run AI Pentest" outline button in header; `PentestLaunchDialog` rendered alongside `ActiveFollowupDialog`
+- [x] `frontend/src/components/scans/NewScanForm.tsx` — instructions textarea confirmed present in AI Config step (Phase 17)
 
 **Backend:** No changes — `POST /scans` already accepts `scan_type: 'pentest'` and `parent_scan_id`.
 
